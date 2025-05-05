@@ -1,7 +1,6 @@
-#include <stdio.h>
 #include <stdbool.h>
-#define _MB_TEST_
-#include "macrobro.h"
+#define MB_TEST_IMPLEMENTATION
+#include "mb_test.h"
 
 bool greater(int a, int b)
 {

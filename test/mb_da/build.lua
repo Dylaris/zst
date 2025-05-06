@@ -10,15 +10,13 @@ local CC     = "gcc"
 local CFLAGS = { "-Wall", "-Wextra", "-I../../" }
 local CSTD   = "-std=c11"
 local CLEAN  = { "mb_da", "test" }
-local LD_LIB = {}
 
 local function build()
     local all = cmd:new()
-    all:append(CC, CFLAGS, CSTD, "-o", "mb_da", "mb_da.c", LD_LIB)
+    all:append(CC, CFLAGS, CSTD, "-o", "mb_da", "mb_da.c")
 
     local test = cmd:new("test", nil, true)
-    test:call(function () table.insert(LD_LIB, "-lcriterion") end)
-    test:append(CC, CFLAGS, CSTD, "-o", "test", "test.c", LD_LIB)
+    test:append(CC, CFLAGS, CSTD, "-o", "test", "test.c")
 
     local clean = cmd:new("clean")
     clean:call(tool.clean, CLEAN)

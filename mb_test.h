@@ -47,13 +47,13 @@ MB_TEST_DEF void mb_fail(int case_id);
 
 MB_TEST_DEF void mb_pass(int case_id)
 {
-    printf("case %d: [" GREEN "pass" RESET "]\n", case_id); 
+    printf("case %03d: [" GREEN "pass" RESET "]\n", case_id); 
     fflush(stdout);
 }
 
 MB_TEST_DEF void mb_fail(int case_id)
 {
-    printf("case %d: [" RED "fail" RESET "]\n", case_id); 
+    printf("case %03d: [" RED "fail" RESET "]\n", case_id); 
     fflush(stdout);
 }
 

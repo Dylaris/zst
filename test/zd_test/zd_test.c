@@ -8,15 +8,30 @@ bool greater(int a, int b)
     else return false;
 }
 
+char *test1(void)
+{
+    zd_assert(greater(10, 12)   == false);
+    zd_assert(greater(10+2, 12) == false);
+    zd_assert(greater(10, 12-3) == true);
+    return "test1 done!";
+}
+
+char *test2(void)
+{
+    zd_assert(greater(10, 10));
+    zd_assert(greater(7, 10));
+    zd_assert(greater(11, 10), "what?");
+    return "test2 done!";
+}
+
 int main(void)
 {
-    zd_test(greater(10, 12)   == false, 1);
-    zd_test(greater(10+2, 12) == false, 1+1);
-    zd_test(greater(10, 12-3) == true,  1+1+1);
+    struct zd_testsuite suite = {0};
+    suite.name = "test_greater";
 
-    zd_test(greater(10, 10), 4);
-    zd_test(greater(7, 10),  5);
-    zd_test(greater(11, 10), 6);
+    zd_run_test(&suite, test1);
+    zd_run_test(&suite, test2);
+    zd_test_summary(&suite);
 
     return 0;
 }

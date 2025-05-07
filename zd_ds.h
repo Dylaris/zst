@@ -1,3 +1,12 @@
+/*
+ * Author: Dylaris
+ * Copyright (c) 2025
+ * License: MIT
+ * Date: 2025-05-07
+ *
+ * All rights reserved
+ */
+
 #ifndef ZD_DS_H
 #define ZD_DS_H
 
@@ -17,8 +26,8 @@
 extern "C" {
 #endif // __cplusplus
 
+/* 'zd_ds_cast(ptr, (int *))' (do not ignore the paren around type) */
 #ifndef zd_ds_cast
-// 'zd_ds_cast(ptr, (int *))' (do not ignore the paren around type)
 #define zd_ds_cast(ptr, type) (type (ptr))  
 #endif // zd_ds_cast
 
@@ -28,17 +37,16 @@ struct zd_dyna {
     void *items;
     size_t count;
     size_t capacity;
-    size_t size;        // size of each element
+    size_t size;    // size of each element
 };
 
 ZD_DS_DEF void zd_dyna_init(struct zd_dyna *da, size_t size);
 ZD_DS_DEF void zd_dyna_append(struct zd_dyna *da, void *elem);
 ZD_DS_DEF void zd_dyna_remove(struct zd_dyna *da, size_t idx, void (*clear_item)(void *));
-// zd_dyna_set means: { clear_item(da[idx]); da[idx] = elem; }
 ZD_DS_DEF void *zd_dyna_set(struct zd_dyna *da, size_t idx, void *elem, void (*clear_item)(void *));
-// zd_dyna_get means: return da[idx];
 ZD_DS_DEF void *zd_dyna_get(struct zd_dyna *da, size_t idx);
 ZD_DS_DEF void zd_dyna_destroy(struct zd_dyna *da, void (*clear_item)(void *));
+ZD_DS_DEF void *zd_dyna_next(struct zd_dyna *da);
 
 #endif // defined(ZD_DS_DYNAMIC_ARRAY) || defined(ZD_DS_ALL)
 
@@ -98,6 +106,7 @@ ZD_DS_DEF void zd_dyna_remove(struct zd_dyna *da, size_t idx, void (*clear_item)
     }
 }
 
+/* zd_dyna_set means: { clear_item(da[idx]); da[idx] = elem; } */
 ZD_DS_DEF void *zd_dyna_set(struct zd_dyna *da, size_t idx, void *elem, void (*clear_item)(void *))
 {
     if (idx >= da->count) return NULL;
@@ -107,6 +116,7 @@ ZD_DS_DEF void *zd_dyna_set(struct zd_dyna *da, size_t idx, void *elem, void (*c
     return dest;
 }
 
+/* zd_dyna_get means: return da[idx]; */
 ZD_DS_DEF void *zd_dyna_get(struct zd_dyna *da, size_t idx)
 {
     if (idx >= da->count) return NULL;
@@ -125,6 +135,14 @@ ZD_DS_DEF void zd_dyna_destroy(struct zd_dyna *da, void (*clear_item)(void *))
     da->count = 0;
     da->capacity = 0;
     da->size = 0;
+}
+
+/* A iterator */
+ZD_DS_DEF void *zd_dyna_next(struct zd_dyna *da)
+{
+    static size_t pos = 0;
+    if (pos >= da->count) pos = 0;
+    return zd_dyna_get(da, pos++);
 }
 
 #endif // defined(ZD_DS_DYNAMIC_ARRAY) || defined(ZD_DS_ALL)

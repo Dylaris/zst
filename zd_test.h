@@ -1,3 +1,12 @@
+/*
+ * Author: Dylaris
+ * Copyright (c) 2025
+ * License: MIT
+ * Date: 2025-05-07
+ *
+ * All rights reserved
+ */
+
 #ifndef ZD_TEST_H
 #define ZD_TEST_H
 
@@ -16,16 +25,18 @@ extern "C" {
 #endif // ZD_TEST_NO_STATIC
 #endif // ZD_TESE_DEF
 
-ZD_TEST_DEF void zd_pass(int case_id);
-ZD_TEST_DEF void zd_fail(int case_id);
+struct zd_testsuite {
+    size_t pass_count;
+    size_t fail_count;
+    const char *name;
+};
 
-#ifndef zd_test
-#define zd_test(exp, case_id)          \
-    do {                               \
-        if ((exp)) zd_pass((case_id)); \
-        else       zd_fail((case_id)); \
-    } while (0)
-#endif // zd_test
+static struct zd_testsuite *__suite_ptr__;
+
+ZD_TEST_DEF void zd_pass(void);
+ZD_TEST_DEF void zd_fail(void);
+ZD_TEST_DEF void zd_run_test(struct zd_testsuite *suite, char *(*test)(void));
+ZD_TEST_DEF void zd_test_summary(struct zd_testsuite *suite);
 
 #ifdef __cplusplus
 }
@@ -45,16 +56,43 @@ ZD_TEST_DEF void zd_fail(int case_id);
 #define CYAN    "\x1b[36m"
 #define WHITE   "\x1b[37m"
 
-ZD_TEST_DEF void zd_pass(int case_id)
+#ifndef zd_assert
+#define zd_assert(exp, ...)     \
+    do {                        \
+        if ((exp)) zd_pass();   \
+        else       zd_fail();   \
+    } while (0)
+#endif // zd_assert
+
+ZD_TEST_DEF void zd_pass(void)
 {
-    printf("case %03d: [" GREEN "pass" RESET "]\n", case_id); 
+    int case_id = __suite_ptr__->pass_count + __suite_ptr__->fail_count + 1;
+    printf("<suite:%s> case %03d: [" GREEN "pass" RESET "]\n", __suite_ptr__->name, case_id); 
     fflush(stdout);
+    __suite_ptr__->pass_count += 1;
 }
 
-ZD_TEST_DEF void zd_fail(int case_id)
+ZD_TEST_DEF void zd_fail(void)
 {
-    printf("case %03d: [" RED "fail" RESET "]\n", case_id); 
+    int case_id = __suite_ptr__->pass_count + __suite_ptr__->fail_count + 1;
+    printf("<suite:%s> case %03d: [" RED "fail" RESET "]\n", __suite_ptr__->name, case_id); 
     fflush(stdout);
+    __suite_ptr__->fail_count += 1;
+}
+
+ZD_TEST_DEF void zd_run_test(struct zd_testsuite *suite, char *(*test)(void))
+{
+    __suite_ptr__ = suite;
+    char *msg = test();
+    if (msg) printf("<suite:%s> %s\n", __suite_ptr__->name, msg);
+}
+
+ZD_TEST_DEF void zd_test_summary(struct zd_testsuite *suite)
+{
+    printf("TEST SUITE: <%s>\n", suite->name);
+    printf("      PASS: %zu\n", suite->pass_count);
+    printf("      FAIL: %zu\n", suite->fail_count);
+    printf("     TOTAL: %zu\n", suite->pass_count + suite->fail_count);
 }
 
 #undef RESET

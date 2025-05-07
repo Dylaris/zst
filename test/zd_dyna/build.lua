@@ -9,16 +9,17 @@ local debug = luabc.debug
 local CC     = "gcc"
 local CFLAGS = { "-Wall", "-Wextra", "-I../../" }
 local CSTD   = "-std=c11"
-local SRC    = "mb_test.c"
-local TARGET = "mb_test"
-local CLEAR  = TARGET
+local CLEAN  = { "zd_dyna", "test" }
 
 local function build()
     local all = cmd:new()
-    all:append(CC, CFLAGS, CSTD, "-o", TARGET, SRC)
+    all:append(CC, CFLAGS, CSTD, "-o", "zd_dyna", "zd_dyna.c")
+
+    local test = cmd:new("test", nil, true)
+    test:append(CC, CFLAGS, CSTD, "-o", "test", "test.c")
 
     local clean = cmd:new("clean")
-    clean:call(tool.clean, CLEAR)
+    clean:call(tool.clean, CLEAN)
 
     luabc.build()
 end

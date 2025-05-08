@@ -1,6 +1,7 @@
 #include <stdbool.h>
-#define ZD_TEST_IMPLEMENTATION
-#include "zd_test.h"
+#define ZD_IMPLEMENTATION
+#define ZD_TEST
+#include "zd.h"
 
 bool greater(int a, int b)
 {
@@ -10,16 +11,16 @@ bool greater(int a, int b)
 
 char *test1(void)
 {
-    zd_assert(greater(10, 12)   == false);
-    zd_assert(greater(10+2, 12) == false);
-    zd_assert(greater(10, 12-3) == true);
+    zd_assert(greater(10, 12)   == false, NULL);
+    zd_assert(greater(10+2, 12) == false, NULL);
+    zd_assert(greater(10, 12-3) == true,  NULL);
     return "test1 done!";
 }
 
 char *test2(void)
 {
-    zd_assert(greater(10, 10));
-    zd_assert(greater(7, 10));
+    zd_assert(greater(10, 10), NULL);
+    zd_assert(greater(7, 10), NULL);
     zd_assert(greater(11, 10), "what?");
     return "test2 done!";
 }

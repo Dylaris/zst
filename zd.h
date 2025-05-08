@@ -7,6 +7,20 @@
  * All rights reserved
  */
 
+/*
+ * Usage: Define a few macros to enable the corresponding functions
+ *
+ * ZD_STATIC            Restricts the function scope to static
+ * ZD_IMPLEMENTATION    Includes function implementation when defined, otherwise only the header is included
+ *
+ * ZD_TEST              Simple testing tool
+ * ZD_LOG               Simple logging for information
+ * ZD_DS_DYNAMIC_ARRAY  Dynamic array
+ * ZD_DS_DYNAMIC_BUFFER Dynamic buffer
+ * ZD_DS_STRING         String
+ * ZD_DS_STACK          Stack
+ */
+
 #ifndef _ZD_H_
 #define _ZD_H_
 
@@ -59,10 +73,11 @@ ZD_DEF void zd_dynb_destroy(struct zd_dynb *db);
 #ifdef ZD_DS_DYNAMIC_ARRAY
 
 struct zd_dyna {
-    void *items;
+    void *base;
     size_t count;
     size_t capacity;
     size_t size;    /* size of each element */
+    size_t _pos;    /* iterator position */
 };
 
 ZD_DEF void zd_dyna_init(struct zd_dyna *da, size_t size);
@@ -90,6 +105,23 @@ ZD_DEF void zd_string_destroy(struct zd_string *str);
 
 #endif /* ZD_DS_STRING */
 
+#ifdef ZD_DS_STACK
+
+struct zd_stack {
+    void *base;
+    int top;
+    size_t capacity;
+    size_t size;    /* size of each element */
+};
+
+ZD_DEF void zd_stack_init(struct zd_stack *stk, size_t size);
+ZD_DEF void zd_stack_push(struct zd_stack *stk, void *elem);
+ZD_DEF void *zd_stack_pop(struct zd_stack *stk);
+ZD_DEF void *zd_stack_top(struct zd_stack *stk);
+ZD_DEF void zd_stack_destroy(struct zd_stack *stk, void (*clear_item)(void *));
+
+#endif /* ZD_DS_STACK */
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
@@ -103,36 +135,31 @@ ZD_DEF void zd_string_destroy(struct zd_string *str);
 #define ZD_LOG_COLOR_GREEN   "\x1b[32m"
 #define ZD_LOG_COLOR_YELLOW  "\x1b[33m"
 
-#define ZD_LOG_INFO  1
-#define ZD_LOG_ERROR 2
-#define ZD_LOG_OK    3
+#define ZD_LOG_INFO 1
+#define ZD_LOG_ERRO 2
+#define ZD_LOG_GOOD 3
 
-#define zd_log(type, fmt, ...)                                              \
-    do {                                                                    \
-        switch ((type)) {                                                   \
-        case ZD_LOG_INFO:                                                   \
-            fprintf(stderr, "[" ZD_LOG_COLOR_YELLOW                         \
-                    "INFO" ZD_LOG_COLOR_RESET "] " fmt, ##__VA_ARGS__);     \
-            break;                                                          \
-                                                                            \
-        case ZD_LOG_ERROR:                                                  \
-            fprintf(stderr, "[" ZD_LOG_COLOR_RED                            \
-                    "ERROR" ZD_LOG_COLOR_RESET "] " fmt, ##__VA_ARGS__);    \
-            break;                                                          \
-                                                                            \
-        case ZD_LOG_OK:                                                     \
-            fprintf(stderr, "[" ZD_LOG_COLOR_GREEN                          \
-                    "OK" ZD_LOG_COLOR_RESET "] " fmt, ##__VA_ARGS__);       \
-            break;                                                          \
-                                                                            \
-        default: break;                                                     \
-        }                                                                   \
+#define zd_log(type, fmt, ...)                                                  \
+    do {                                                                        \
+        switch ((type)) {                                                       \
+        case ZD_LOG_INFO:                                                       \
+            fprintf(stderr, "[" ZD_LOG_COLOR_YELLOW                             \
+                    "INFO" ZD_LOG_COLOR_RESET "] " fmt "\n", ##__VA_ARGS__);    \
+            break;                                                              \
+                                                                                \
+        case ZD_LOG_ERRO:                                                       \
+            fprintf(stderr, "[" ZD_LOG_COLOR_RED                                \
+                    "ERRO" ZD_LOG_COLOR_RESET "] " fmt "\n", ##__VA_ARGS__);    \
+            break;                                                              \
+                                                                                \
+        case ZD_LOG_GOOD:                                                       \
+            fprintf(stderr, "[" ZD_LOG_COLOR_GREEN                              \
+                    "GOOD" ZD_LOG_COLOR_RESET "] " fmt "\n", ##__VA_ARGS__);    \
+            break;                                                              \
+                                                                                \
+        default: break;                                                         \
+        }                                                                       \
     } while(0)
-
-#undef ZD_LOG_COLOR_RESET
-#undef ZD_LOG_COLOR_RED
-#undef ZD_LOG_COLOR_GREEN
-#undef ZD_LOG_COLOR_YELLOW
 
 #endif /* ZD_LOG */
 
@@ -202,10 +229,11 @@ ZD_DEF void zd_test_summary(struct zd_testsuite *suite)
 
 ZD_DEF void zd_dyna_init(struct zd_dyna *da, size_t size)
 {
-    da->items = NULL;
+    da->base = NULL;
     da->count = 0;
     da->capacity = 0;
     da->size = size;
+    da->_pos = 0;
 }
 
 ZD_DEF void zd_dyna_append(struct zd_dyna *da, void *elem)
@@ -214,8 +242,8 @@ ZD_DEF void zd_dyna_append(struct zd_dyna *da, void *elem)
         #define ZD_DA_INIT_CAP 10
         da->capacity = (da->capacity == 0) ? ZD_DA_INIT_CAP : (2 * da->capacity);
         #undef ZD_DA_INIT_CAP
-        da->items = realloc(da->items, da->size * da->capacity);
-        assert(da->items != NULL);
+        da->base = realloc(da->base, da->size * da->capacity);
+        assert(da->base != NULL);
     }
     void *dest = zd_dyna_get(da, da->count++);
     memcpy(dest, elem, da->size);
@@ -232,8 +260,8 @@ ZD_DEF void zd_dyna_insert(struct zd_dyna *da, size_t idx, void *elem)
             #define ZD_DA_INIT_CAP 10
             da->capacity = (da->capacity == 0) ? ZD_DA_INIT_CAP : (2 * da->capacity);
             #undef ZD_DA_INIT_CAP
-            da->items = realloc(da->items, da->size * da->capacity);
-            assert(da->items != NULL);
+            da->base = realloc(da->base, da->size * da->capacity);
+            assert(da->base != NULL);
         }
         void *dest = zd_dyna_get(da, idx);
         memcpy((char *) dest + da->size, dest, (da->count-idx) * da->size);
@@ -267,29 +295,29 @@ ZD_DEF void *zd_dyna_set(struct zd_dyna *da, size_t idx, void *elem, void (*clea
 ZD_DEF void *zd_dyna_get(struct zd_dyna *da, size_t idx)
 {
     if (idx >= da->count) return NULL;
-    return (char *) da->items + da->size * idx;
+    return (char *) da->base + da->size * idx;
 }
 
 ZD_DEF void zd_dyna_destroy(struct zd_dyna *da, void (*clear_item)(void *))
 {
     if (clear_item != NULL) {
         for (size_t i = 0; i < da->count; i++) {
-            void *item = (char *) da->items + da->size * i;
+            void *item = (char *) da->base + da->size * i;
             clear_item(item);
         }
     }
-    free(da->items);
+    free(da->base);
     da->count = 0;
     da->capacity = 0;
     da->size = 0;
+    da->_pos = 0;
 }
 
 /* A iterator */
 ZD_DEF void *zd_dyna_next(struct zd_dyna *da)
 {
-    static size_t pos = 0;
-    if (pos >= da->count) pos = 0;
-    return zd_dyna_get(da, pos++);
+    if (da->_pos > da->count) da->_pos = 0;
+    return zd_dyna_get(da, da->_pos++);
 }
 
 #endif /* ZD_DS_DYNAMIC_ARRAY */
@@ -355,6 +383,58 @@ ZD_DEF void zd_dynb_destroy(struct zd_dynb *db)
 }
 
 #endif /* ZD_DS_DYNAMIC_BUFFER */
+
+#ifdef ZD_DS_STACK
+
+ZD_DEF void zd_stack_init(struct zd_stack *stk, size_t size)
+{
+    stk->base = NULL;
+    stk->top = -1;
+    stk->capacity = 0;
+    stk->size = size;
+}
+
+ZD_DEF void zd_stack_push(struct zd_stack *stk, void *elem)
+{
+    stk->top++;
+    if (stk->capacity <= (size_t) stk->top) {
+        #define ZD_STK_INIT_CAP 10
+        stk->capacity = (stk->capacity == 0) ? ZD_STK_INIT_CAP : (2 * stk->capacity);
+        #undef ZD_STK_INIT_CAP
+        stk->base = realloc(stk->base, stk->size * stk->capacity);
+        assert(stk->base != NULL);
+    }
+    void *dest = (char *) stk->base + stk->size * stk->top;
+    memcpy(dest, elem, stk->size);
+}
+
+ZD_DEF void *zd_stack_pop(struct zd_stack *stk)
+{
+    if (stk->top == -1) return NULL; 
+    return (char *) stk->base + stk->size * stk->top--;
+}
+
+ZD_DEF void *zd_stack_top(struct zd_stack *stk)
+{
+    if (stk->top == -1) return NULL; 
+    return (char *) stk->base + stk->size * stk->top;
+}
+
+ZD_DEF void zd_stack_destroy(struct zd_stack *stk, void (*clear_item)(void *))
+{
+    if (clear_item != NULL) {
+        for (int i = 0; i <= stk->top; i++) {
+            void *item = (char *) stk->base + stk->size * i;
+            clear_item(item);
+        }
+    }
+    free(stk->base);
+    stk->top = -1;
+    stk->capacity = 0;
+    stk->size = 0;
+}
+
+#endif /* ZD_DS_STACK */
 
 #endif /* ZD_IMPLEMENTATION */
 

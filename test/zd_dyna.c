@@ -55,12 +55,14 @@ char *test_int(void)
     zd_assert(*zd_type_cast(zd_dyna_next(&da), (int *)) == 2, NULL);
     zd_assert(*zd_type_cast(zd_dyna_next(&da), (int *)) == 1, NULL);
     zd_assert(*zd_type_cast(zd_dyna_next(&da), (int *)) == 101, NULL);
+    zd_assert( zd_type_cast(zd_dyna_next(&da), (int *)) == NULL, "end of iterator");
 
     zd_assert(*zd_type_cast(zd_dyna_next(&da), (int *)) == 102, NULL);
     zd_assert(*zd_type_cast(zd_dyna_next(&da), (int *)) == 1, NULL);
     zd_assert(*zd_type_cast(zd_dyna_next(&da), (int *)) == 2, NULL);
     zd_assert(*zd_type_cast(zd_dyna_next(&da), (int *)) == 1, NULL);
     zd_assert(*zd_type_cast(zd_dyna_next(&da), (int *)) == 101, NULL);
+    zd_assert( zd_type_cast(zd_dyna_next(&da), (int *)) == NULL, "end of iterator");
 
     zd_dyna_destroy(&da, NULL);
 
@@ -99,12 +101,15 @@ char *test_struct(void)
     zd_dyna_remove(&da, 3, clear_item); zd_assert(da.count == 3, NULL);
     zd_dyna_remove(&da, 3, clear_item); zd_assert(da.count == 3, NULL);
 
-    zd_assert(zd_type_cast(zd_dyna_next(&da), (struct type *))->a == 1, NULL);
-    zd_assert(zd_type_cast(zd_dyna_next(&da), (struct type *))->a == 2, NULL);
-    zd_assert(zd_type_cast(zd_dyna_next(&da), (struct type *))->a == 1, NULL);
-    zd_assert(zd_type_cast(zd_dyna_next(&da), (struct type *))->a == 1, NULL);
-    zd_assert(zd_type_cast(zd_dyna_next(&da), (struct type *))->a == 2, NULL);
-    zd_assert(zd_type_cast(zd_dyna_next(&da), (struct type *))->a == 1, NULL);
+    zd_assert(zd_type_cast(zd_dyna_next(&da), (struct type *))->a == 1,    NULL);
+    zd_assert(zd_type_cast(zd_dyna_next(&da), (struct type *))->a == 2,    NULL);
+    zd_assert(zd_type_cast(zd_dyna_next(&da), (struct type *))->a == 1,    NULL);
+    zd_assert(zd_type_cast(zd_dyna_next(&da), (struct type *))    == NULL, "end of iterator");
+
+    zd_assert(zd_type_cast(zd_dyna_next(&da), (struct type *))->a == 1,    NULL);
+    zd_assert(zd_type_cast(zd_dyna_next(&da), (struct type *))->a == 2,    NULL);
+    zd_assert(zd_type_cast(zd_dyna_next(&da), (struct type *))->a == 1,    NULL);
+    zd_assert(zd_type_cast(zd_dyna_next(&da), (struct type *))    == NULL, "end of iterator");
 
     zd_dyna_destroy(&da, clear_item);
 

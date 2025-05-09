@@ -2,7 +2,7 @@
  * Author: Dylaris
  * Copyright (c) 2025
  * License: MIT
- * Date: 2025-05-08
+ * Date: 2025-05-09
  *
  * All rights reserved
  */
@@ -244,20 +244,24 @@ ZD_DEF void zd_cmdlopt_destroy(void *arg)
 
 #define zd_log(type, fmt, ...)                                                  \
     do {                                                                        \
+        char buf[1024];     /* f*ck string concat in C */                       \
         switch ((type)) {                                                       \
         case ZD_LOG_INFO:                                                       \
-            fprintf(stderr, "[" ZD_LOG_COLOR_YELLOW                             \
-                    "INFO" ZD_LOG_COLOR_RESET "] " fmt "\n", ##__VA_ARGS__);    \
+            snprintf(buf, sizeof(buf), "[%sINFO%s] %s\n", ZD_LOG_COLOR_YELLOW,  \
+                    ZD_LOG_COLOR_RESET, (fmt), ##__VA_ARGS__);                  \
+            fprintf(stderr, "%s", buf);                                         \
             break;                                                              \
                                                                                 \
         case ZD_LOG_ERRO:                                                       \
-            fprintf(stderr, "[" ZD_LOG_COLOR_RED                                \
-                    "ERRO" ZD_LOG_COLOR_RESET "] " fmt "\n", ##__VA_ARGS__);    \
+            snprintf(buf, sizeof(buf), "[%sERRO%s] %s\n", ZD_LOG_COLOR_RED,     \
+                    ZD_LOG_COLOR_RESET, (fmt), ##__VA_ARGS__);                  \
+            fprintf(stderr, "%s", buf);                                         \
             break;                                                              \
                                                                                 \
         case ZD_LOG_GOOD:                                                       \
-            fprintf(stderr, "[" ZD_LOG_COLOR_GREEN                              \
-                    "GOOD" ZD_LOG_COLOR_RESET "] " fmt "\n", ##__VA_ARGS__);    \
+            snprintf(buf, sizeof(buf), "[%sGOOD%s] %s\n", ZD_LOG_COLOR_GREEN,   \
+                    ZD_LOG_COLOR_RESET, (fmt), ##__VA_ARGS__);                  \
+            fprintf(stderr, "%s", buf);                                         \
             break;                                                              \
                                                                                 \
         default: break;                                                         \
@@ -265,7 +269,6 @@ ZD_DEF void zd_cmdlopt_destroy(void *arg)
     } while(0)
 
 #endif /* ZD_LOG */
-
 
 #ifdef ZD_FILE
 

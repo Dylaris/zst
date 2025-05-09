@@ -14,6 +14,11 @@ local TARGET = tool.replace_files_extension(SRC, (luabc.os == "WIN") and ".exe" 
 local function build()
     for i = 1, #SRC do
         local all = cmd:new()
+        if SRC[i] == "./zd_dynasm.c" then
+            CSTD = "-std=gnu11"
+        else
+            CSTD = "-std=c11"
+        end
         all:append(CC, CFLAGS, CSTD, "-o", TARGET[i], SRC[i])
     end
 

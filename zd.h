@@ -16,6 +16,7 @@
  * ZD_TEST              Simple testing tool
  * ZD_LOG               Simple logging for information
  * ZD_FILE              Some operations about file
+ * ZD_DYNASM            A simple way to use 'dynasm'
  * ZD_COMMAND_LINE      Some operations about command line (option, ...)
  * ZD_DS_DYNAMIC_ARRAY  Dynamic array
  * ZD_DS_DYNAMIC_BUFFER Dynamic buffer
@@ -126,8 +127,8 @@ ZD_DEF void zd_stack_destroy(struct zd_stack *stk, void (*clear_item)(void *));
 
 #ifdef ZD_FILE
 
-ZD_DEF int zd_file_load(const char *filename, void **buf);
-ZD_DEF int zd_file_dump(const char *filename, void *buf, size_t size);
+ZD_DEF int zd_file_load(const char *filename, char **buf);
+ZD_DEF int zd_file_dump(const char *filename, char *buf, size_t size);
 
 #endif /* ZD_FILE */
 
@@ -151,6 +152,25 @@ ZD_DEF void zd_cmdl_destroy(void *arg);
 ZD_DEF void zd_cmdlopt_destroy(void *arg);
 
 #endif /* ZD_COMMAND_LINE */
+
+#ifdef ZD_DYNASM
+
+#if defined(__linux__)
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/wait.h>
+#include <sys/mman.h>
+#elif defined(__WIN32)
+#else
+#endif
+
+#define ZD_PAGE_SIZE 4096
+#define ZD_ASSEMBLER "fasm"
+
+ZD_DEF void *zd_dynasm_do(char *code);
+ZD_DEF void zd_dynasm_free(void *addr);
+
+#endif /* ZD_DYNASM */
 
 #ifdef __cplusplus
 }
@@ -273,7 +293,7 @@ ZD_DEF void zd_cmdlopt_destroy(void *arg)
 #ifdef ZD_FILE
 
 /* return -1 if error, the file size if success (buf is NULL means get the file size) */
-ZD_DEF int zd_file_load(const char *filename, void **buf)
+ZD_DEF int zd_file_load(const char *filename, char **buf)
 {
     FILE *fp = fopen(filename, "r");
     if (fp == NULL) return -1;
@@ -309,12 +329,12 @@ ZD_DEF int zd_file_load(const char *filename, void **buf)
 }
 
 /* return -1 if error, the file size if success */
-ZD_DEF int zd_file_dump(const char *filename, void *buf, size_t size)
+ZD_DEF int zd_file_dump(const char *filename, char *buf, size_t size)
 {
     FILE *fp = fopen(filename, "w");
     if (fp == NULL) return -1;
 
-    size_t write_size = fwrite(*buf, 1, size, fp);
+    size_t write_size = fwrite(buf, 1, size, fp);
     if (write_size != size) {
         fclose(fp);
         return -1;
@@ -596,6 +616,87 @@ ZD_DEF void zd_stack_destroy(struct zd_stack *stk, void (*clear_item)(void *))
 }
 
 #endif /* ZD_DS_STACK */
+
+#ifdef ZD_DYNASM
+
+#if defined(__linux__)
+
+ZD_DEF void *zd_dynasm_do(char *code)
+{
+    /* write the code into a asm file */
+
+    char tmp_asm[] = "/tmp/tempfile_XXXXXX";
+
+    int asm_fd = mkstemp(tmp_asm);
+    if (asm_fd < 0) return NULL;
+
+    char buf[ZD_PAGE_SIZE];
+    snprintf(buf, sizeof(buf), "use64\n%s", code);
+    size_t asm_size = strlen(buf);
+
+    if (write(asm_fd, buf, asm_size) != (ssize_t) asm_size) {
+        close(asm_fd);
+        unlink(tmp_asm);
+        return NULL;
+    }
+    close(asm_fd);
+
+    /* use assembler (fasm) to compile asm file, and output binary file */
+
+    char tmp_bin[] = "/tmp/tempfile_XXXXXX";
+
+    int bin_fd = mkstemp(tmp_bin);
+    if (bin_fd < 0) return NULL;
+
+    pid_t pid = fork(); 
+    if (pid == 0) {
+        close(bin_fd);
+
+        /* diable the output from child process */
+        int devnull_fd = open("/dev/null", O_WRONLY);
+        if (devnull_fd < 0) _exit(1);
+
+        dup2(devnull_fd, STDOUT_FILENO);
+        dup2(devnull_fd, STDERR_FILENO);
+        close(devnull_fd);
+
+        execlp(ZD_ASSEMBLER, ZD_ASSEMBLER, tmp_asm, tmp_bin, NULL);
+        _exit(1);
+    }
+    waitpid(pid, NULL, 0);
+
+    unlink(tmp_asm);
+
+    /* load the machine code into an mapped executable page */
+
+    char *addr = mmap(NULL, ZD_PAGE_SIZE, PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON, -1, 0);
+    if (addr == MAP_FAILED) {
+        close(bin_fd);
+        unlink(tmp_bin);
+        return NULL;
+    }
+
+    size_t read_size = read(bin_fd, buf, sizeof(buf));
+    if (read_size > ZD_PAGE_SIZE) read_size = ZD_PAGE_SIZE;
+
+    memcpy(addr, buf, read_size);
+
+    close(bin_fd);
+    unlink(tmp_bin);
+
+    return addr;
+}
+
+ZD_DEF void zd_dynasm_free(void *addr)
+{
+    munmap(addr, ZD_PAGE_SIZE);
+}
+
+#elif defined(__WIN32)
+#else
+#endif /* platform */
+
+#endif /* ZD_DYNASM */
 
 #endif /* ZD_IMPLEMENTATION */
 

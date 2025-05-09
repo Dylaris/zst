@@ -15,6 +15,8 @@
  *
  * ZD_TEST              Simple testing tool
  * ZD_LOG               Simple logging for information
+ * ZD_FILE              Some operations about file
+ * ZD_COMMAND_LINE      Some operations about command line (option, ...)
  * ZD_DS_DYNAMIC_ARRAY  Dynamic array
  * ZD_DS_DYNAMIC_BUFFER Dynamic buffer
  * ZD_DS_STRING         String
@@ -66,7 +68,7 @@ struct zd_dynb {
 };
 
 ZD_DEF void zd_dynb_resize(struct zd_dynb *db, int size);
-ZD_DEF void zd_dynb_destroy(struct zd_dynb *db);
+ZD_DEF void zd_dynb_destroy(void *arg);
 
 #endif /* ZD_DS_DYNAMIC_BUFFER */
 
@@ -101,7 +103,7 @@ struct zd_string {
 
 ZD_DEF void zd_string_append(struct zd_string *str, void *new_str, size_t size);
 ZD_DEF struct zd_string zd_string_sub(struct zd_string *str, size_t src, size_t dest);
-ZD_DEF void zd_string_destroy(struct zd_string *str);
+ZD_DEF void zd_string_destroy(void *arg);
 
 #endif /* ZD_DS_STRING */
 
@@ -122,11 +124,112 @@ ZD_DEF void zd_stack_destroy(struct zd_stack *stk, void (*clear_item)(void *));
 
 #endif /* ZD_DS_STACK */
 
+#ifdef ZD_FILE
+
+ZD_DEF int zd_file_load(const char *filename, void **buf);
+ZD_DEF int zd_file_dump(const char *filename, void *buf, size_t size);
+
+#endif /* ZD_FILE */
+
+#ifdef ZD_COMMAND_LINE
+
+struct zd_cmdlopt {
+    struct zd_string name; 
+    struct zd_dyna vals;    /* each element is zd_string */
+};
+
+struct zd_cmdl {
+    struct zd_string program;
+    size_t count;
+    struct zd_dyna nopts;   /* each element is zd_string */
+    struct zd_dyna opts;    /* each element is zd_cmdlopt */
+};
+
+ZD_DEF void zd_cmdl_build(struct zd_cmdl *cmdl, int argc, char **argv);
+ZD_DEF struct zd_dyna zd_cmdl_getopt(struct zd_cmdl *cmdl, const char *optname, int *is_valid);
+ZD_DEF void zd_cmdl_destroy(void *arg);
+ZD_DEF void zd_cmdlopt_destroy(void *arg);
+
+#endif /* ZD_COMMAND_LINE */
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
 #ifdef ZD_IMPLEMENTATION
+
+#ifdef ZD_COMMAND_LINE
+
+ZD_DEF void zd_cmdl_build(struct zd_cmdl *cmdl, int argc, char **argv)
+{
+    zd_string_append(&cmdl->program, argv[0], strlen(argv[0]));
+    cmdl->count = (size_t) argc;
+    zd_dyna_init(&cmdl->nopts, sizeof(struct zd_string));
+    zd_dyna_init(&cmdl->opts,  sizeof(struct zd_cmdlopt));
+
+    for (int i = 1; i < argc; i++) {
+        struct zd_string arg = {0}; 
+        zd_string_append(&arg, argv[i], strlen(argv[i]));
+
+        if (arg.buf[0] == '-') { /* option */
+            struct zd_cmdlopt opt = {0};
+            zd_dyna_init(&opt.vals, sizeof(struct zd_string));
+
+            /* add the correspoding option values to opt */
+            opt.name = arg;
+            for (i = i + 1; i < argc; i++) {
+                /* new option */
+                if (argv[i][0] == '-') {
+                    i = i - 1;  /* we have i++ at the end of outside for-loop */
+                    break;
+                }
+                /* option value for current option */
+                struct zd_string val = {0}; 
+                zd_string_append(&val, argv[i], strlen(argv[i]));
+                zd_dyna_append(&opt.vals, &val);
+            }
+
+            zd_dyna_append(&cmdl->opts, &opt);
+        } else { /* not a option */
+            zd_dyna_append(&cmdl->nopts, &arg);
+        }
+    }
+}
+
+ZD_DEF struct zd_dyna zd_cmdl_getopt(struct zd_cmdl *cmdl, const char *optname, int *is_valid)
+{
+    *is_valid = 0;
+    struct zd_dyna res = {0};
+
+    for (size_t i = 0; i < cmdl->opts.count; i++) {
+        struct zd_cmdlopt *saved_opt = (struct zd_cmdlopt *) zd_dyna_get(&cmdl->opts, i);
+        if (strcmp(saved_opt->name.buf, optname) == 0) {
+            res = saved_opt->vals;
+            *is_valid = 1;
+            break;
+        }
+    }
+
+    return res;
+}
+
+ZD_DEF void zd_cmdl_destroy(void *arg)
+{
+    struct zd_cmdl *cmdl = (struct zd_cmdl *) arg;
+    zd_string_destroy(&cmdl->program);
+    cmdl->count = 0;
+    zd_dyna_destroy(&cmdl->nopts, zd_string_destroy);
+    zd_dyna_destroy(&cmdl->opts,  zd_cmdlopt_destroy);
+}
+
+ZD_DEF void zd_cmdlopt_destroy(void *arg)
+{
+    struct zd_cmdlopt *opt = (struct zd_cmdlopt *) arg;
+    zd_string_destroy(&opt->name);
+    zd_dyna_destroy(&opt->vals, zd_string_destroy);
+}
+
+#endif /* ZD_COMMAND_LINE */
 
 #ifdef ZD_LOG
 
@@ -163,6 +266,62 @@ ZD_DEF void zd_stack_destroy(struct zd_stack *stk, void (*clear_item)(void *));
 
 #endif /* ZD_LOG */
 
+
+#ifdef ZD_FILE
+
+/* return -1 if error, the file size if success (buf is NULL means get the file size) */
+ZD_DEF int zd_file_load(const char *filename, void **buf)
+{
+    FILE *fp = fopen(filename, "r");
+    if (fp == NULL) return -1;
+
+    long saved_offset = ftell(fp);
+    fseek(fp, 0, SEEK_END);
+    long size = ftell(fp);
+    fseek(fp, saved_offset, SEEK_SET);
+
+    if (buf == NULL) {
+        fclose(fp);
+        return size;
+    }
+
+    *buf = malloc(size+1);    
+    if (*buf == NULL) {
+        fclose(fp);
+        return -1;
+    }
+
+    size_t read_size = fread(*buf, 1, size, fp);
+    if (read_size != size) {
+        free(*buf);
+        *buf = NULL;
+        fclose(fp);
+        return -1;
+    }
+    (*buf)[size] = '\0';
+
+    fclose(fp);
+
+    return size;
+}
+
+/* return -1 if error, the file size if success */
+ZD_DEF int zd_file_dump(const char *filename, void *buf, size_t size)
+{
+    FILE *fp = fopen(filename, "w");
+    if (fp == NULL) return -1;
+
+    size_t write_size = fwrite(*buf, 1, size, fp);
+    if (write_size != size) {
+        fclose(fp);
+        return -1;
+    }
+
+    return size;
+}
+
+#endif /* ZD_FILE */
+
 #ifdef ZD_TEST
 
 #define ZD_TEST_COLOR_RESET   "\x1b[0m"
@@ -172,9 +331,6 @@ ZD_DEF void zd_stack_destroy(struct zd_stack *stk, void (*clear_item)(void *));
 #ifndef zd_type_cast
 #define zd_type_cast(obj, type) (type (obj))  
 #endif /* zd_type_cast */
-
-#define HAS_ARGS(...)  _HAS_ARGS(__VA_ARGS__, 1, 0)
-#define _HAS_ARGS(_1, _2, _3, ...) _3
 
 #ifndef zd_assert
 #define zd_assert(exp, msg)                                     \
@@ -347,8 +503,9 @@ ZD_DEF struct zd_string zd_string_sub(struct zd_string *str, size_t src, size_t 
     return res;
 }
 
-ZD_DEF void zd_string_destroy(struct zd_string *str)
+ZD_DEF void zd_string_destroy(void *arg)
 {
+    struct zd_string *str = (struct zd_string *) arg;
     if (str->buf != NULL) free(str->buf);
     str->buf = NULL;
     str->length = 0;
@@ -373,8 +530,9 @@ ZD_DEF void zd_dynb_resize(struct zd_dynb *db, int size)
            (db->capacity == 0 && db->base == NULL));
 }
 
-ZD_DEF void zd_dynb_destroy(struct zd_dynb *db)
+ZD_DEF void zd_dynb_destroy(void *arg)
 {
+    struct zd_dynb *db = (struct zd_dynb *) arg;
     if (db->base != NULL) {
         free(db->base);
         db->base = NULL;

@@ -16,7 +16,7 @@
  * ZD_TEST              Simple testing tool
  * ZD_LOG               Simple logging for information
  * ZD_FILE              Some operations about file
- * ZD_DYNASM            A simple way to use 'dynasm'
+ * ZD_DYNASM            A simple way to use 'dynasm' (A stupid thing :->)
  * ZD_COMMAND_LINE      Some operations about command line (option, ...)
  * ZD_DS_DYNAMIC_ARRAY  Dynamic array
  * ZD_DS_DYNAMIC_BUFFER Dynamic buffer
@@ -102,6 +102,16 @@ struct zd_string {
     size_t capacity;
 };
 
+#ifndef ZD_IMPLEMENTATION
+#define zd_string_appendm
+#else
+#define zd_string_appendm(p_obj, fmt, ...)                  \
+    do {                                                    \
+        char buf[1024];                                     \
+        snprintf(buf, sizeof(buf), (fmt), ##__VA_ARGS__);   \
+        zd_string_append(p_obj, buf, 0);                    \
+    } while (0)
+#endif
 ZD_DEF void zd_string_append(struct zd_string *str, void *new_str, size_t size);
 ZD_DEF struct zd_string zd_string_sub(struct zd_string *str, size_t src, size_t dest);
 ZD_DEF void zd_string_destroy(void *arg);
@@ -167,7 +177,8 @@ ZD_DEF void zd_cmdlopt_destroy(void *arg);
 #define ZD_PAGE_SIZE 4096
 #define ZD_ASSEMBLER "fasm"
 
-ZD_DEF void *zd_dynasm_do(char *code);
+ZD_DEF void *zd_dynasm_map(size_t size);
+ZD_DEF void *zd_dynasm_do(char *code, void *addr);
 ZD_DEF void zd_dynasm_free(void *addr);
 
 #endif /* ZD_DYNASM */
@@ -621,8 +632,18 @@ ZD_DEF void zd_stack_destroy(struct zd_stack *stk, void (*clear_item)(void *))
 
 #if defined(__linux__)
 
-ZD_DEF void *zd_dynasm_do(char *code)
+ZD_DEF void *zd_dynasm_map(size_t size)
 {
+    if (size == 0) size = ZD_PAGE_SIZE;
+    void *addr = mmap(NULL, size, PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON, -1, 0);
+    if (addr == MAP_FAILED) return NULL;
+    return addr;
+}
+
+ZD_DEF void *zd_dynasm_do(char *code, void *addr)
+{
+    if (code == NULL || addr == NULL) return NULL;
+
     /* write the code into a asm file */
 
     char tmp_asm[] = "/tmp/tempfile_XXXXXX";
@@ -668,13 +689,6 @@ ZD_DEF void *zd_dynasm_do(char *code)
     unlink(tmp_asm);
 
     /* load the machine code into an mapped executable page */
-
-    char *addr = mmap(NULL, ZD_PAGE_SIZE, PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON, -1, 0);
-    if (addr == MAP_FAILED) {
-        close(bin_fd);
-        unlink(tmp_bin);
-        return NULL;
-    }
 
     size_t read_size = read(bin_fd, buf, sizeof(buf));
     if (read_size > ZD_PAGE_SIZE) read_size = ZD_PAGE_SIZE;

@@ -1,6 +1,6 @@
 # zd
 
-## Brief
+## brief
 `zd` is a single-header C library. Simply copy this file into your project and define a few macros to enable the corresponding functions.
 
 However, keep in mind that this library is not focused on performance. It's designed for quick development of features. 
@@ -9,7 +9,7 @@ I haven’t spent too much time on error handling, so sometimes it’s just basi
 
 When using it, it's important to know what you're doing and make sure the parameters are valid.
 
-## Usage
+## usage
 
 Example of using `zd_log`:
 

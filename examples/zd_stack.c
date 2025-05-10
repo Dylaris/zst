@@ -31,8 +31,10 @@ int main(void)
     struct fruit *item = zd_stack_top(&fruits);
     printf("stack top: [%s] ($ %zu)\n", item->name, item->price);
 
-    while ((item = zd_stack_pop(&fruits)) != NULL)
+    while ((item = zd_stack_top(&fruits)) != NULL) {
         printf("[%s] ($ %zu)\n", item->name, item->price);
+        zd_stack_pop(&fruits, clear_item);
+    }
 
     zd_stack_push(&fruits, &apple);
     zd_stack_push(&fruits, &orange);

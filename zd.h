@@ -129,7 +129,7 @@ struct zd_stack {
 
 ZD_DEF void zd_stack_init(struct zd_stack *stk, size_t size);
 ZD_DEF void zd_stack_push(struct zd_stack *stk, void *elem);
-ZD_DEF void *zd_stack_pop(struct zd_stack *stk);
+ZD_DEF void *zd_stack_pop(struct zd_stack *stk, void (*clear_item)(void *));
 ZD_DEF void *zd_stack_top(struct zd_stack *stk);
 ZD_DEF void zd_stack_destroy(struct zd_stack *stk, void (*clear_item)(void *));
 
@@ -186,6 +186,8 @@ ZD_DEF void zd_dynasm_free(void *addr);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
+#endif /* _ZD_H_ */
 
 #ifdef ZD_IMPLEMENTATION
 
@@ -600,10 +602,16 @@ ZD_DEF void zd_stack_push(struct zd_stack *stk, void *elem)
     memcpy(dest, elem, stk->size);
 }
 
-ZD_DEF void *zd_stack_pop(struct zd_stack *stk)
+ZD_DEF void *zd_stack_pop(struct zd_stack *stk, void (*clear_item)(void *))
 {
     if (stk->top == -1) return NULL; 
-    return (char *) stk->base + stk->size * stk->top--;
+    if (clear_item != NULL) {
+        void *item = (char *) stk->base + stk->size * stk->top--;
+        clear_item(item);
+        return NULL;
+    } else {
+        return (char *) stk->base + stk->size * stk->top--;
+    }
 }
 
 ZD_DEF void *zd_stack_top(struct zd_stack *stk)
@@ -713,6 +721,3 @@ ZD_DEF void zd_dynasm_free(void *addr)
 #endif /* ZD_DYNASM */
 
 #endif /* ZD_IMPLEMENTATION */
-
-#endif /* _ZD_H_ */
-

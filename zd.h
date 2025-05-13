@@ -16,12 +16,15 @@
  * ZD_TEST              Simple testing tool
  * ZD_LOG               Simple logging for information
  * ZD_FILE              Some operations about file
+ * ZD_LEXER             Lexer tool
  * ZD_DYNASM            A simple way to use 'dynasm' (A stupid thing :->)
  * ZD_COMMAND_LINE      Some operations about command line (option, ...)
  * ZD_DS_DYNAMIC_ARRAY  Dynamic array
  * ZD_DS_DYNAMIC_BUFFER Dynamic buffer
  * ZD_DS_STRING         String
  * ZD_DS_STACK          Stack
+ * ZD_DS_HASH           Hash table (based on linked-list)
+ * ZD_DS_TRIE           Trie or prefix tree
  */
 
 #ifndef _ZD_H_
@@ -29,6 +32,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <assert.h>
 
@@ -134,6 +138,43 @@ ZD_DEF void *zd_stack_top(struct zd_stack *stk);
 ZD_DEF void zd_stack_destroy(struct zd_stack *stk, void (*clear_item)(void *));
 
 #endif /* ZD_DS_STACK */
+
+#ifdef ZD_DS_TRIE
+
+#ifndef ZD_TRIE_SIZE
+#define ZD_TRIE_SIZE   26
+#endif /* ZD_TRIE_SIZE */
+
+struct zd_trie_node {
+    struct zd_trie_node *children[ZD_TRIE_SIZE];
+    bool is_end;
+    size_t count;
+};
+
+ZD_DEF struct zd_trie_node *zd_trie_create_node(void);
+ZD_DEF void zd_trie_insert(struct zd_trie_node *root, const char *word);
+ZD_DEF bool zd_trie_search(struct zd_trie_node *root, const char *word);
+ZD_DEF void zd_trie_destroy(struct zd_trie_node *root);
+
+#endif /* ZD_DS_TRIE */
+
+#ifdef ZD_DS_HASH
+
+#endif /* ZD_DS_HASH */
+
+#ifdef ZD_LEXER
+
+struct zd_lexer {
+    char *buf;
+    char *start;
+    int cur_line;
+};
+
+ZD_DEF void zd_lexer_init(struct zd_lexer *lexer, char *source);
+ZD_DEF bool zd_lexer_next(struct zd_lexer *lexer, char *delimiter, struct zd_string *res);
+ZD_DEF bool zd_lexer_peek(struct zd_lexer *lexer, size_t peek_num, struct zd_string *res);
+
+#endif /* ZD_LEXER */
 
 #ifdef ZD_FILE
 
@@ -719,5 +760,156 @@ ZD_DEF void zd_dynasm_free(void *addr)
 #endif /* platform */
 
 #endif /* ZD_DYNASM */
+
+#ifdef ZD_DS_TRIE
+
+#ifndef ZD_TRIE_SIZE
+#define ZD_TRIE_SIZE   26
+#endif /* ZD_TRIE_SIZE */
+
+#define ZD_TRIE_MAP(x) ((x) - 'a')
+
+ZD_DEF struct zd_trie_node *zd_trie_create_node(void)
+{
+    struct zd_trie_node *node = malloc(sizeof(struct zd_trie_node));
+    assert(node != NULL);
+
+    for (int i = 0; i < ZD_TRIE_SIZE; i++)
+        node->children[i] = NULL; 
+    node->is_end = false;
+    node->count = 0;
+
+    return node;
+}
+
+ZD_DEF void zd_trie_insert(struct zd_trie_node *root, const char *word)
+{
+    if (root == NULL) return;
+
+    struct zd_trie_node *cur = root;
+
+    while (*word != '\0') {
+        int index = ZD_TRIE_MAP(*word);
+        if (cur->children[index] == NULL)
+            cur->children[index] = zd_trie_create_node();
+        cur = cur->children[index];
+        word++;  
+    }
+
+    cur->is_end = true;
+    cur->count++;
+}
+
+ZD_DEF bool zd_trie_search(struct zd_trie_node *root, const char *word)
+{
+    if (root == NULL) return false;
+
+    struct zd_trie_node *cur = root;
+
+    while (*word != '\0') {
+        int index = ZD_TRIE_MAP(*word);
+        if (cur->children[index] == NULL)
+            cur->children[index] = zd_trie_create_node();
+        cur = cur->children[index];
+        word++;  
+    }
+
+    return cur != NULL && cur->is_end == true;
+}
+
+ZD_DEF void zd_trie_destroy(struct zd_trie_node *root)
+{
+    if (root == NULL) return;
+
+    for (int i = 0; i < ZD_TRIE_SIZE; i++) {
+        struct zd_trie_node *cur = root->children[i];
+        if (cur != NULL) zd_trie_destroy(cur);
+    }
+    free(root);
+}
+
+#endif /* ZD_DS_TRIE */
+
+#ifdef ZD_LEXER
+
+static inline bool is_alpha(char c)
+{
+    return ((c) >= 'a' && (c) <= 'z') || ((c) >= 'A' && (c) <= 'Z');
+}
+
+static inline bool is_digit(char c)
+{
+    return ((c) >= '0' && (c) <= '9');
+}
+
+static inline bool is_alnum(char c)
+{
+    return is_digit(c) || is_alpha(c);
+}
+
+static inline bool is_over(struct zd_lexer *lexer)
+{
+    return (lexer->start - lexer->buf) > strlen(lexer->buf);
+}
+
+ZD_DEF void zd_lexer_init(struct zd_lexer *lexer, char *source)
+{
+    lexer->buf = source;
+    lexer->start = source;
+    lexer->cur_line = 1;
+}
+
+ZD_DEF bool zd_lexer_peek(struct zd_lexer *lexer, size_t peek_num, struct zd_string *res)
+{
+    if (res == NULL) return false;
+
+    lexer->start += peek_num;
+    if (is_over(lexer) == true) {
+        lexer->start -= peek_num;
+        return false;
+    }
+    lexer->start -= peek_num;
+    
+    zd_string_append(res, lexer->start, peek_num);
+
+    return true;
+}
+
+ZD_DEF bool zd_lexer_match_pair(struct zd_lexer *lexer, const char *lp, const char *rp, struct zd_string *res)
+{
+    if (lp == NULL || rp == NULL || res == NULL) return false;
+
+    char *left = strstr(lexer->start, lp);
+    char *right = strstr(lexer->start, rp);
+    if (right == NULL || left == NULL || left > right) return false;
+
+    size_t len = right - (left + strlen(lp));
+    if (len == 0) return false;
+
+    lexer->start = left + strlen(lp);
+    zd_string_append(res, lexer->start, len);
+    lexer->start = right + strlen(rp);
+    return true;
+}
+
+ZD_DEF bool zd_lexer_next(struct zd_lexer *lexer, char *delimiter, struct zd_string *res)
+{
+    if (is_over(lexer) == true) return false;
+
+    if (delimiter == NULL) delimiter = " ";
+
+    char *pos = strstr(lexer->start, delimiter);
+    if (pos == NULL) pos = lexer->buf + strlen(lexer->buf);
+    size_t len = pos - lexer->start;
+    if (len != 0) zd_string_append(res, lexer->start, len);
+
+    for (int i = 0; i < len + strlen(delimiter); i++)
+        if (lexer->start[i] == '\n') lexer->cur_line++;
+    lexer->start = pos + strlen(delimiter);
+
+    return true; 
+}
+
+#endif /* ZD_LEXER */
 
 #endif /* ZD_IMPLEMENTATION */

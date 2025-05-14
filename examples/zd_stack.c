@@ -1,4 +1,5 @@
 #define ZD_IMPLEMENTATION
+#define ZD_DS_DYNAMIC_ARRAY
 #define ZD_DS_STACK
 #include "zd.h"
 
@@ -29,17 +30,16 @@ int main(void)
     zd_stack_push(&fruits, &grape);
 
     struct fruit *item = zd_stack_top(&fruits);
-    printf("stack top: [%s] ($ %zu)\n", item->name, item->price);
+    printf("stack top before pop: [%s] ($ %zu)\n", item->name, item->price);
 
-    while ((item = zd_stack_top(&fruits)) != NULL) {
+    while ((item = zd_stack_pop(&fruits)) != NULL)
         printf("[%s] ($ %zu)\n", item->name, item->price);
-        zd_stack_pop(&fruits, clear_item);
-    }
 
-    zd_stack_push(&fruits, &apple);
-    zd_stack_push(&fruits, &orange);
     zd_stack_push(&fruits, &banana);
     zd_stack_push(&fruits, &grape);
+
+    item = zd_stack_top(&fruits);
+    printf("stack top after pop: [%s] ($ %zu)\n", item->name, item->price);
 
     zd_stack_destroy(&fruits, clear_item);
 

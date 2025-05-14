@@ -1,5 +1,6 @@
 #define ZD_IMPLEMENTATION
 #define ZD_TEST
+#define ZD_DS_DYNAMIC_ARRAY
 #define ZD_DS_STACK
 #include "zd.h"
 
@@ -29,13 +30,13 @@ char *test_int(void)
 
     zd_assert(*zd_type_cast(zd_stack_top(&stk), (int *)) == 3, NULL);
 
-    zd_assert(*zd_type_cast(zd_stack_pop(&stk, NULL), (int *)) == 3, NULL);
-    zd_assert(*zd_type_cast(zd_stack_pop(&stk, NULL), (int *)) == 4, NULL);
-    zd_assert(*zd_type_cast(zd_stack_pop(&stk, NULL), (int *)) == 2, NULL);
-    zd_assert(*zd_type_cast(zd_stack_pop(&stk, NULL), (int *)) == 1, NULL);
-    zd_assert(*zd_type_cast(zd_stack_pop(&stk, NULL), (int *)) == 5, NULL);
+    zd_assert(*zd_type_cast(zd_stack_pop(&stk), (int *)) == 3, NULL);
+    zd_assert(*zd_type_cast(zd_stack_pop(&stk), (int *)) == 4, NULL);
+    zd_assert(*zd_type_cast(zd_stack_pop(&stk), (int *)) == 2, NULL);
+    zd_assert(*zd_type_cast(zd_stack_pop(&stk), (int *)) == 1, NULL);
+    zd_assert(*zd_type_cast(zd_stack_pop(&stk), (int *)) == 5, NULL);
     zd_assert( zd_type_cast(zd_stack_top(&stk), (int *)) == NULL, "top: end of stack");
-    zd_assert( zd_type_cast(zd_stack_pop(&stk, NULL), (int *)) == NULL, "pop: end of stack");
+    zd_assert( zd_type_cast(zd_stack_pop(&stk), (int *)) == NULL, "pop: end of stack");
     zd_assert(stk.top == -1, "top is -1");
 
     elem = 5; zd_stack_push(&stk, &elem);
@@ -67,13 +68,13 @@ char *test_struct(void)
     elem.mem = malloc(1); elem.a = 3; zd_stack_push(&stk, &elem);
     zd_assert(stk.top == 4, NULL);
 
-    zd_assert(zd_type_cast(zd_stack_top(&stk), (struct type *))->a == 3, NULL); zd_assert(zd_stack_pop(&stk, clear_item) == NULL, NULL);
-    zd_assert(zd_type_cast(zd_stack_top(&stk), (struct type *))->a == 4, NULL); zd_assert(zd_stack_pop(&stk, clear_item) == NULL, NULL);
-    zd_assert(zd_type_cast(zd_stack_top(&stk), (struct type *))->a == 2, NULL); zd_assert(zd_stack_pop(&stk, clear_item) == NULL, NULL);
-    zd_assert(zd_type_cast(zd_stack_top(&stk), (struct type *))->a == 1, NULL); zd_assert(zd_stack_pop(&stk, clear_item) == NULL, NULL);
-    zd_assert(zd_type_cast(zd_stack_top(&stk), (struct type *))->a == 5, NULL); zd_assert(zd_stack_pop(&stk, clear_item) == NULL, NULL);
-    zd_assert(zd_type_cast(zd_stack_top(&stk), (struct type *))    == NULL, "top: end of stack");
-    zd_assert(zd_type_cast(zd_stack_pop(&stk, NULL), (struct type *))    == NULL, "pop: end of stack");
+    zd_assert(zd_type_cast(zd_stack_pop(&stk), (struct type *))->a == 3, NULL);
+    zd_assert(zd_type_cast(zd_stack_pop(&stk), (struct type *))->a == 4, NULL);
+    zd_assert(zd_type_cast(zd_stack_pop(&stk), (struct type *))->a == 2, NULL);
+    zd_assert(zd_type_cast(zd_stack_pop(&stk), (struct type *))->a == 1, NULL);
+    zd_assert(zd_type_cast(zd_stack_pop(&stk), (struct type *))->a == 5, NULL);
+    zd_assert(zd_type_cast(zd_stack_pop(&stk), (struct type *))    == NULL, "top: end of stack");
+    zd_assert(zd_type_cast(zd_stack_pop(&stk), (struct type *))    == NULL, "pop: end of stack");
     zd_assert(stk.top == -1, "top is -1");
 
     elem.mem = malloc(1); elem.a = 5; zd_stack_push(&stk, &elem);

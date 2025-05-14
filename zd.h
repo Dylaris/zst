@@ -16,7 +16,6 @@
  * ZD_TEST              Simple testing tool
  * ZD_LOG               Simple logging for information
  * ZD_FILE              Some operations about file
- * ZD_LEXER             Lexer tool
  * ZD_DYNASM            A simple way to use 'dynasm' (A stupid thing :->)
  * ZD_COMMAND_LINE      Some operations about command line (option, ...)
  * ZD_DS_DYNAMIC_ARRAY  Dynamic array
@@ -25,6 +24,7 @@
  * ZD_DS_STACK          Stack
  * ZD_DS_HASH           Hash table (based on linked-list)
  * ZD_DS_TRIE           Trie or prefix tree
+ * ZD_DS_QUEUE          Queue (based on linked-list)
  */
 
 #ifndef _ZD_H_
@@ -84,14 +84,16 @@ struct zd_dyna {
     size_t count;
     size_t capacity;
     size_t size;    /* size of each element */
-    size_t _pos;    /* iterator position */
+    size_t pos;     /* iterator position */
 };
 
 ZD_DEF void zd_dyna_init(struct zd_dyna *da, size_t size);
 ZD_DEF void zd_dyna_append(struct zd_dyna *da, void *elem);
 ZD_DEF void zd_dyna_insert(struct zd_dyna *da, size_t idx, void *elem);
-ZD_DEF void zd_dyna_remove(struct zd_dyna *da, size_t idx, void (*clear_item)(void *));
-ZD_DEF void *zd_dyna_set(struct zd_dyna *da, size_t idx, void *elem, void (*clear_item)(void *));
+ZD_DEF void zd_dyna_remove(struct zd_dyna *da, size_t idx, 
+        void (*clear_item)(void *));
+ZD_DEF void *zd_dyna_set(struct zd_dyna *da, size_t idx, void *elem, 
+        void (*clear_item)(void *));
 ZD_DEF void *zd_dyna_get(struct zd_dyna *da, size_t idx);
 ZD_DEF void zd_dyna_destroy(struct zd_dyna *da, void (*clear_item)(void *));
 ZD_DEF void *zd_dyna_next(struct zd_dyna *da);
@@ -116,8 +118,10 @@ struct zd_string {
         zd_string_append(p_obj, buf, 0);                    \
     } while (0)
 #endif
-ZD_DEF void zd_string_append(struct zd_string *str, void *new_str, size_t size);
-ZD_DEF struct zd_string zd_string_sub(struct zd_string *str, size_t src, size_t dest);
+ZD_DEF void zd_string_append(struct zd_string *str, 
+        void *new_str, size_t size);
+ZD_DEF struct zd_string zd_string_sub(struct zd_string *str, 
+        size_t src, size_t dest);
 ZD_DEF void zd_string_destroy(void *arg);
 
 #endif /* ZD_DS_STRING */
@@ -129,13 +133,15 @@ struct zd_stack {
     int top;
     size_t capacity;
     size_t size;    /* size of each element */
+    struct zd_dyna gc;
 };
 
 ZD_DEF void zd_stack_init(struct zd_stack *stk, size_t size);
 ZD_DEF void zd_stack_push(struct zd_stack *stk, void *elem);
-ZD_DEF void *zd_stack_pop(struct zd_stack *stk, void (*clear_item)(void *));
+ZD_DEF void *zd_stack_pop(struct zd_stack *stk);
 ZD_DEF void *zd_stack_top(struct zd_stack *stk);
-ZD_DEF void zd_stack_destroy(struct zd_stack *stk, void (*clear_item)(void *));
+ZD_DEF void zd_stack_destroy(struct zd_stack *stk, 
+        void (*clear_item)(void *));
 
 #endif /* ZD_DS_STACK */
 
@@ -158,23 +164,41 @@ ZD_DEF void zd_trie_destroy(struct zd_trie_node *root);
 
 #endif /* ZD_DS_TRIE */
 
+#ifdef ZD_DS_QUEUE
+
+struct zd_queue_node {
+    void *data;
+    struct zd_queue_node *next;
+};
+
+struct zd_queue {
+    struct zd_queue_node head;  /* dummy */
+    struct zd_queue_node *front, *rear;
+    size_t count;
+    size_t size;    /* size of each element */
+    struct zd_dyna gc;
+};
+
+#ifndef zd_queue_isempty
+#ifdef ZD_IMPLEMENTATION
+#define zd_queue_isempty(qp) ((qp)->head.next == NULL)
+#else
+#define zd_queue_isempty(qp)
+#endif /* ZD_IMPLEMENTATION */
+#endif /* zd_queue_isempty */
+
+ZD_DEF void zd_queue_init(struct zd_queue *qp, size_t size);
+ZD_DEF void zd_queue_destroy(struct zd_queue *qp, void (*clear_item)(void *));
+ZD_DEF void *zd_queue_front(struct zd_queue *qp);
+ZD_DEF void *zd_queue_rear(struct zd_queue *qp);
+ZD_DEF void zd_queue_push(struct zd_queue *qp, void *elem);
+ZD_DEF void *zd_queue_pop(struct zd_queue *qp);
+
+#endif /* ZD_DS_QUEUE */
+
 #ifdef ZD_DS_HASH
 
 #endif /* ZD_DS_HASH */
-
-#ifdef ZD_LEXER
-
-struct zd_lexer {
-    char *buf;
-    char *start;
-    int cur_line;
-};
-
-ZD_DEF void zd_lexer_init(struct zd_lexer *lexer, char *source);
-ZD_DEF bool zd_lexer_next(struct zd_lexer *lexer, char *delimiter, struct zd_string *res);
-ZD_DEF bool zd_lexer_peek(struct zd_lexer *lexer, size_t peek_num, struct zd_string *res);
-
-#endif /* ZD_LEXER */
 
 #ifdef ZD_FILE
 
@@ -198,7 +222,8 @@ struct zd_cmdl {
 };
 
 ZD_DEF void zd_cmdl_build(struct zd_cmdl *cmdl, int argc, char **argv);
-ZD_DEF struct zd_dyna zd_cmdl_getopt(struct zd_cmdl *cmdl, const char *optname, int *is_valid);
+ZD_DEF struct zd_dyna zd_cmdl_getopt(struct zd_cmdl *cmdl, 
+        const char *optname, int *is_valid);
 ZD_DEF void zd_cmdl_destroy(void *arg);
 ZD_DEF void zd_cmdlopt_destroy(void *arg);
 
@@ -270,13 +295,14 @@ ZD_DEF void zd_cmdl_build(struct zd_cmdl *cmdl, int argc, char **argv)
     }
 }
 
-ZD_DEF struct zd_dyna zd_cmdl_getopt(struct zd_cmdl *cmdl, const char *optname, int *is_valid)
+ZD_DEF struct zd_dyna zd_cmdl_getopt(struct zd_cmdl *cmdl, 
+        const char *optname, int *is_valid)
 {
     *is_valid = 0;
     struct zd_dyna res = {0};
 
     for (size_t i = 0; i < cmdl->opts.count; i++) {
-        struct zd_cmdlopt *saved_opt = (struct zd_cmdlopt *) zd_dyna_get(&cmdl->opts, i);
+        struct zd_cmdlopt *saved_opt = zd_dyna_get(&cmdl->opts, i);
         if (strcmp(saved_opt->name.buf, optname) == 0) {
             res = saved_opt->vals;
             *is_valid = 1;
@@ -346,7 +372,8 @@ ZD_DEF void zd_cmdlopt_destroy(void *arg)
 
 #ifdef ZD_FILE
 
-/* return -1 if error, the file size if success (buf is NULL means get the file size) */
+/* return -1 if error, the file size if success 
+   (buf is NULL means get the file size) */
 ZD_DEF int zd_file_load(const char *filename, char **buf)
 {
     FILE *fp = fopen(filename, "r");
@@ -386,7 +413,8 @@ ZD_DEF int zd_file_load(const char *filename, char **buf)
 ZD_DEF int zd_file_dump(const char *filename, char *buf, size_t size)
 {
     FILE *fp = fopen(filename, "w");
-    if (fp == NULL) return -1;
+    if (fp == NULL) 
+        return -1;
 
     size_t write_size = fwrite(buf, 1, size, fp);
     if (write_size != size) {
@@ -441,7 +469,8 @@ ZD_DEF void zd_run_test(struct zd_testsuite *suite, char *(*test)(void))
 {
     __suite_ptr__ = suite;
     char *msg = test();
-    if (msg) printf("<suite:%s> %s\n", __suite_ptr__->name, msg);
+    if (msg) 
+        printf("<suite:%s> %s\n", __suite_ptr__->name, msg);
 }
 
 ZD_DEF void zd_test_summary(struct zd_testsuite *suite)
@@ -466,7 +495,7 @@ ZD_DEF void zd_dyna_init(struct zd_dyna *da, size_t size)
     da->count = 0;
     da->capacity = 0;
     da->size = size;
-    da->_pos = 0;
+    da->pos = 0;
 }
 
 ZD_DEF void zd_dyna_append(struct zd_dyna *da, void *elem)
@@ -503,11 +532,13 @@ ZD_DEF void zd_dyna_insert(struct zd_dyna *da, size_t idx, void *elem)
     }
 }
 
-ZD_DEF void zd_dyna_remove(struct zd_dyna *da, size_t idx, void (*clear_item)(void *))
+ZD_DEF void zd_dyna_remove(struct zd_dyna *da, size_t idx, 
+        void (*clear_item)(void *))
 {
     if (da->count > 0 && idx < da->count) {
         void *elem = zd_dyna_get(da, idx);
-        if (clear_item != NULL) clear_item(elem);
+        if (clear_item)
+            clear_item(elem);
         memcpy(zd_dyna_get(da, idx), zd_dyna_get(da, idx + 1),
                 da->size * (da->count - idx - 1));
         da->count--;
@@ -515,11 +546,14 @@ ZD_DEF void zd_dyna_remove(struct zd_dyna *da, size_t idx, void (*clear_item)(vo
 }
 
 /* zd_dyna_set means: { clear_item(da[idx]); da[idx] = elem; } */
-ZD_DEF void *zd_dyna_set(struct zd_dyna *da, size_t idx, void *elem, void (*clear_item)(void *))
+ZD_DEF void *zd_dyna_set(struct zd_dyna *da, size_t idx, void *elem, 
+        void (*clear_item)(void *))
 {
-    if (idx >= da->count) return NULL;
+    if (idx >= da->count) 
+        return NULL;
     void *dest = zd_dyna_get(da, idx);
-    if (clear_item != NULL && dest != NULL) clear_item(dest);
+    if (clear_item && dest) 
+        clear_item(dest);
     memcpy(dest, elem, da->size);
     return dest;
 }
@@ -533,7 +567,7 @@ ZD_DEF void *zd_dyna_get(struct zd_dyna *da, size_t idx)
 
 ZD_DEF void zd_dyna_destroy(struct zd_dyna *da, void (*clear_item)(void *))
 {
-    if (clear_item != NULL) {
+    if (clear_item) {
         for (size_t i = 0; i < da->count; i++) {
             void *item = (char *) da->base + da->size * i;
             clear_item(item);
@@ -543,14 +577,15 @@ ZD_DEF void zd_dyna_destroy(struct zd_dyna *da, void (*clear_item)(void *))
     da->count = 0;
     da->capacity = 0;
     da->size = 0;
-    da->_pos = 0;
+    da->pos = 0;
 }
 
 /* A iterator */
 ZD_DEF void *zd_dyna_next(struct zd_dyna *da)
 {
-    if (da->_pos > da->count) da->_pos = 0;
-    return zd_dyna_get(da, da->_pos++);
+    if (da->pos > da->count)
+        da->pos = 0;
+    return zd_dyna_get(da, da->pos++);
 }
 
 #endif /* ZD_DS_DYNAMIC_ARRAY */
@@ -562,7 +597,8 @@ ZD_DEF void zd_string_append(struct zd_string *str, void *new_str, size_t len)
     if (len == 0) len = strlen(new_str);
     while (str->capacity <= str->length + len + 1) {
         #define ZD_STRING_INIT_CAP 128
-        str->capacity = (str->capacity == 0) ? ZD_STRING_INIT_CAP : (2 * str->capacity);
+        str->capacity = (str->capacity == 0) ? ZD_STRING_INIT_CAP 
+                                             : (2 * str->capacity);
         #undef ZD_STRING_INIT_CAP
         str->buf = realloc(str->buf, str->capacity);
         assert(str->buf != NULL);
@@ -575,7 +611,8 @@ ZD_DEF void zd_string_append(struct zd_string *str, void *new_str, size_t len)
 ZD_DEF struct zd_string zd_string_sub(struct zd_string *str, size_t src, size_t dest)
 {
     struct zd_string res = {0};
-    if (src >= str->length || dest > str->length || src >= dest) return res;
+    if (src >= str->length || dest > str->length || src >= dest) 
+        return res;
     zd_string_append(&res, str->buf + src, dest - src);
     return res;
 }
@@ -627,6 +664,8 @@ ZD_DEF void zd_stack_init(struct zd_stack *stk, size_t size)
     stk->top = -1;
     stk->capacity = 0;
     stk->size = size;
+    if (size != 0)
+        zd_dyna_init(&stk->gc, size);
 }
 
 ZD_DEF void zd_stack_push(struct zd_stack *stk, void *elem)
@@ -643,32 +682,32 @@ ZD_DEF void zd_stack_push(struct zd_stack *stk, void *elem)
     memcpy(dest, elem, stk->size);
 }
 
-ZD_DEF void *zd_stack_pop(struct zd_stack *stk, void (*clear_item)(void *))
+ZD_DEF void *zd_stack_pop(struct zd_stack *stk)
 {
-    if (stk->top == -1) return NULL; 
-    if (clear_item != NULL) {
-        void *item = (char *) stk->base + stk->size * stk->top--;
-        clear_item(item);
-        return NULL;
-    } else {
-        return (char *) stk->base + stk->size * stk->top--;
-    }
+    if (stk->top == -1) 
+        return NULL; 
+    void *item = (char *) stk->base + stk->size * stk->top--;
+    zd_dyna_append(&stk->gc, item);
+    return item;
 }
 
 ZD_DEF void *zd_stack_top(struct zd_stack *stk)
 {
-    if (stk->top == -1) return NULL; 
+    if (stk->top == -1) 
+        return NULL; 
     return (char *) stk->base + stk->size * stk->top;
 }
 
 ZD_DEF void zd_stack_destroy(struct zd_stack *stk, void (*clear_item)(void *))
 {
-    if (clear_item != NULL) {
+    if (clear_item) {
         for (int i = 0; i <= stk->top; i++) {
             void *item = (char *) stk->base + stk->size * i;
             clear_item(item);
         }
     }
+    zd_dyna_destroy(&stk->gc, clear_item);
+
     free(stk->base);
     stk->top = -1;
     stk->capacity = 0;
@@ -683,22 +722,26 @@ ZD_DEF void zd_stack_destroy(struct zd_stack *stk, void (*clear_item)(void *))
 
 ZD_DEF void *zd_dynasm_map(size_t size)
 {
-    if (size == 0) size = ZD_PAGE_SIZE;
+    if (size == 0) 
+        size = ZD_PAGE_SIZE;
     void *addr = mmap(NULL, size, PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON, -1, 0);
-    if (addr == MAP_FAILED) return NULL;
+    if (addr == MAP_FAILED) 
+        return NULL;
     return addr;
 }
 
 ZD_DEF void *zd_dynasm_do(char *code, void *addr)
 {
-    if (code == NULL || addr == NULL) return NULL;
+    if (!code || !addr) 
+        return NULL;
 
     /* write the code into a asm file */
 
     char tmp_asm[] = "/tmp/tempfile_XXXXXX";
 
     int asm_fd = mkstemp(tmp_asm);
-    if (asm_fd < 0) return NULL;
+    if (asm_fd < 0) 
+        return NULL;
 
     char buf[ZD_PAGE_SIZE];
     snprintf(buf, sizeof(buf), "use64\n%s", code);
@@ -716,7 +759,8 @@ ZD_DEF void *zd_dynasm_do(char *code, void *addr)
     char tmp_bin[] = "/tmp/tempfile_XXXXXX";
 
     int bin_fd = mkstemp(tmp_bin);
-    if (bin_fd < 0) return NULL;
+    if (bin_fd < 0) 
+        return NULL;
 
     pid_t pid = fork(); 
     if (pid == 0) {
@@ -724,7 +768,8 @@ ZD_DEF void *zd_dynasm_do(char *code, void *addr)
 
         /* diable the output from child process */
         int devnull_fd = open("/dev/null", O_WRONLY);
-        if (devnull_fd < 0) _exit(1);
+        if (devnull_fd < 0) 
+            _exit(1);
 
         dup2(devnull_fd, STDOUT_FILENO);
         dup2(devnull_fd, STDERR_FILENO);
@@ -740,7 +785,8 @@ ZD_DEF void *zd_dynasm_do(char *code, void *addr)
     /* load the machine code into an mapped executable page */
 
     size_t read_size = read(bin_fd, buf, sizeof(buf));
-    if (read_size > ZD_PAGE_SIZE) read_size = ZD_PAGE_SIZE;
+    if (read_size > ZD_PAGE_SIZE) 
+        read_size = ZD_PAGE_SIZE;
 
     memcpy(addr, buf, read_size);
 
@@ -784,7 +830,8 @@ ZD_DEF struct zd_trie_node *zd_trie_create_node(void)
 
 ZD_DEF void zd_trie_insert(struct zd_trie_node *root, const char *word)
 {
-    if (root == NULL) return;
+    if (!root) 
+        return;
 
     struct zd_trie_node *cur = root;
 
@@ -800,13 +847,14 @@ ZD_DEF void zd_trie_insert(struct zd_trie_node *root, const char *word)
     cur->count++;
 }
 
-ZD_DEF bool zd_trie_search(struct zd_trie_node *root, const char *word)
+ZD_DEF int zd_trie_search(struct zd_trie_node *root, const char *word)
 {
-    if (root == NULL) return false;
+    if (!root) 
+        return false;
 
     struct zd_trie_node *cur = root;
 
-    while (*word != '\0') {
+    while (*word) {
         int index = ZD_TRIE_MAP(*word);
         if (cur->children[index] == NULL)
             cur->children[index] = zd_trie_create_node();
@@ -814,102 +862,140 @@ ZD_DEF bool zd_trie_search(struct zd_trie_node *root, const char *word)
         word++;  
     }
 
-    return cur != NULL && cur->is_end == true;
+    if (cur || cur->is_end)
+        return cur->count;
+    else
+        return 0;
 }
 
 ZD_DEF void zd_trie_destroy(struct zd_trie_node *root)
 {
-    if (root == NULL) return;
+    if (!root) 
+        return;
 
     for (int i = 0; i < ZD_TRIE_SIZE; i++) {
         struct zd_trie_node *cur = root->children[i];
-        if (cur != NULL) zd_trie_destroy(cur);
+        if (cur) 
+            zd_trie_destroy(cur);
     }
     free(root);
 }
 
 #endif /* ZD_DS_TRIE */
 
-#ifdef ZD_LEXER
+#ifdef ZD_DS_QUEUE
 
-static inline bool is_alpha(char c)
+static void *zd_queue_create_node(void *elem, size_t size)
 {
-    return ((c) >= 'a' && (c) <= 'z') || ((c) >= 'A' && (c) <= 'Z');
+    struct zd_queue_node *np = malloc(sizeof(struct zd_queue_node));
+    assert(np != NULL);
+
+    np->data = malloc(size);
+    assert(np->data != NULL);
+    memcpy(np->data, elem, size);
+    np->next = NULL;
+
+    return np;
 }
 
-static inline bool is_digit(char c)
+ZD_DEF void zd_queue_init(struct zd_queue *qp, size_t size)
 {
-    return ((c) >= '0' && (c) <= '9');
+    qp->head = (struct zd_queue_node) {0};
+    qp->front = NULL;
+    qp->rear  = NULL;
+    qp->count = 0;
+    qp->size  = size;
+    if (size != 0)
+        zd_dyna_init(&qp->gc, sizeof(struct zd_queue_node *));
 }
 
-static inline bool is_alnum(char c)
+ZD_DEF void zd_queue_destroy(struct zd_queue *qp, void (*clear_item)(void *))
 {
-    return is_digit(c) || is_alpha(c);
-}
-
-static inline bool is_over(struct zd_lexer *lexer)
-{
-    return (lexer->start - lexer->buf) > strlen(lexer->buf);
-}
-
-ZD_DEF void zd_lexer_init(struct zd_lexer *lexer, char *source)
-{
-    lexer->buf = source;
-    lexer->start = source;
-    lexer->cur_line = 1;
-}
-
-ZD_DEF bool zd_lexer_peek(struct zd_lexer *lexer, size_t peek_num, struct zd_string *res)
-{
-    if (res == NULL) return false;
-
-    lexer->start += peek_num;
-    if (is_over(lexer) == true) {
-        lexer->start -= peek_num;
-        return false;
+    struct zd_queue_node *np = qp->head.next, *tmp = NULL;
+    while (np) {
+        tmp = np->next;
+        if (clear_item) 
+            clear_item(np->data);
+        free(np->data);
+        free(np);
+        np = tmp;
     }
-    lexer->start -= peek_num;
-    
-    zd_string_append(res, lexer->start, peek_num);
 
-    return true;
+    /* You can use the data field in struct zd_queue_node as element of gc 
+       because the address of first gc element is equal to address of gc base.
+       So you will have double free problem */
+    struct zd_queue_node *gc_item;
+    while ((gc_item = zd_dyna_next(&qp->gc)) != NULL) {
+        if (clear_item)
+            clear_item(gc_item->data);
+        free(gc_item->data);
+        /* free(gc_item);  do not do that shit */
+    }
+    zd_dyna_destroy(&qp->gc, NULL);
+
+    zd_queue_init(qp, 0);
 }
 
-ZD_DEF bool zd_lexer_match_pair(struct zd_lexer *lexer, const char *lp, const char *rp, struct zd_string *res)
+ZD_DEF void zd_queue_push(struct zd_queue *qp, void *elem)
 {
-    if (lp == NULL || rp == NULL || res == NULL) return false;
+    struct zd_queue_node *np = zd_queue_create_node(elem, qp->size);
 
-    char *left = strstr(lexer->start, lp);
-    char *right = strstr(lexer->start, rp);
-    if (right == NULL || left == NULL || left > right) return false;
+    if (zd_queue_isempty(qp)) {
+        qp->front = np;
+        qp->rear = np;
+        qp->head.next = qp->front;
+    } else {
+        qp->rear->next = np;
+        qp->rear = qp->rear->next;
+    }
 
-    size_t len = right - (left + strlen(lp));
-    if (len == 0) return false;
-
-    lexer->start = left + strlen(lp);
-    zd_string_append(res, lexer->start, len);
-    lexer->start = right + strlen(rp);
-    return true;
+    qp->count++;
 }
 
-ZD_DEF bool zd_lexer_next(struct zd_lexer *lexer, char *delimiter, struct zd_string *res)
+ZD_DEF void *zd_queue_pop(struct zd_queue *qp)
 {
-    if (is_over(lexer) == true) return false;
+    if (zd_queue_isempty(qp)) {
+        return NULL;
+    } else if (qp->front == qp->rear) {
+        /* just one element */
+        void *res = qp->front->data;
 
-    if (delimiter == NULL) delimiter = " ";
+        zd_dyna_append(&qp->gc, qp->front);
+        free(qp->front);
+        qp->head = (struct zd_queue_node) {0};
+        qp->front = NULL;
+        qp->rear  = NULL;
+        qp->count = 0;
 
-    char *pos = strstr(lexer->start, delimiter);
-    if (pos == NULL) pos = lexer->buf + strlen(lexer->buf);
-    size_t len = pos - lexer->start;
-    if (len != 0) zd_string_append(res, lexer->start, len);
+        return res;
+    } else {
+        void *res = qp->front->data;
+        qp->head.next = qp->front->next;
 
-    for (int i = 0; i < len + strlen(delimiter); i++)
-        if (lexer->start[i] == '\n') lexer->cur_line++;
-    lexer->start = pos + strlen(delimiter);
+        zd_dyna_append(&qp->gc, qp->front);
+        free(qp->front);
 
-    return true; 
+        qp->front = qp->head.next;
+        qp->count--;
+
+        return res;
+    }
 }
 
-#endif /* ZD_LEXER */
+ZD_DEF void *zd_queue_front(struct zd_queue *qp)
+{
+    if (zd_queue_isempty(qp))
+        return NULL;
+    return qp->front->data;
+}
+
+ZD_DEF void *zd_queue_rear(struct zd_queue *qp)
+{
+    if (zd_queue_isempty(qp))
+        return NULL;
+    return qp->rear->data;
+}
+
+#endif /* ZD_DS_QUEUE */
 
 #endif /* ZD_IMPLEMENTATION */

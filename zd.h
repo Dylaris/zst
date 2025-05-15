@@ -14,6 +14,7 @@
  * ZD_IMPLEMENTATION    Includes function implementation when defined, otherwise only the header is included
  *
  * ZD_TEST              Simple testing tool
+ * ZD_PRINT             Some special print
  * ZD_LOG               Simple logging for information
  * ZD_FILE              Some operations about file
  * ZD_DYNASM            A simple way to use 'dynasm' (A stupid thing :->)
@@ -249,6 +250,30 @@ ZD_DEF void zd_dynasm_free(void *addr);
 
 #endif /* ZD_DYNASM */
 
+#ifdef ZD_PRINT
+
+#include <math.h>
+#include <stdarg.h>
+
+#define OPT_COLOR 1
+#define OPT_S_TBL 2
+#define OPT_D_TBL 3
+
+static inline void __uprint(int opt, ...);
+ZD_DEF void zd_print_color(const char *fmt, va_list args);
+ZD_DEF void zd_print_s_tbl(const char ***arg, size_t row, size_t col);
+ZD_DEF void zd_print_d_tbl(const char ***arg, size_t row, size_t col);
+
+#ifndef zd_printm
+#ifdef ZD_IMPLEMENTATION 
+#define zd_printm(_opt, ...) __uprint(_opt, __VA_ARGS__)
+#else
+#define zd_printm(_opt, ...)
+#endif /* ZD_IMPLEMENTATION */
+#endif /* zd_printm */
+
+#endif /* ZD_PRINT */
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
@@ -338,34 +363,34 @@ ZD_DEF void zd_cmdlopt_destroy(void *arg)
 #define ZD_LOG_COLOR_GREEN   "\x1b[32m"
 #define ZD_LOG_COLOR_YELLOW  "\x1b[33m"
 
-#define ZD_LOG_INFO 1
-#define ZD_LOG_ERRO 2
-#define ZD_LOG_GOOD 3
+#define LOG_INFO 1
+#define LOG_ERRO 2
+#define LOG_GOOD 3
 
-#define zd_log(type, fmt, ...)                                                  \
-    do {                                                                        \
-        char buf[1024];     /* f*ck string concat in C */                       \
-        switch ((type)) {                                                       \
-        case ZD_LOG_INFO:                                                       \
-            snprintf(buf, sizeof(buf), "[%sINFO%s] %s\n", ZD_LOG_COLOR_YELLOW,  \
-                    ZD_LOG_COLOR_RESET, (fmt), ##__VA_ARGS__);                  \
-            fprintf(stderr, "%s", buf);                                         \
-            break;                                                              \
-                                                                                \
-        case ZD_LOG_ERRO:                                                       \
-            snprintf(buf, sizeof(buf), "[%sERRO%s] %s\n", ZD_LOG_COLOR_RED,     \
-                    ZD_LOG_COLOR_RESET, (fmt), ##__VA_ARGS__);                  \
-            fprintf(stderr, "%s", buf);                                         \
-            break;                                                              \
-                                                                                \
-        case ZD_LOG_GOOD:                                                       \
-            snprintf(buf, sizeof(buf), "[%sGOOD%s] %s\n", ZD_LOG_COLOR_GREEN,   \
-                    ZD_LOG_COLOR_RESET, (fmt), ##__VA_ARGS__);                  \
-            fprintf(stderr, "%s", buf);                                         \
-            break;                                                              \
-                                                                                \
-        default: break;                                                         \
-        }                                                                       \
+#define zd_log(type, fmt, ...)                                                      \
+    do {                                                                            \
+        char _buf[1024];     /* f*ck string concat in C */                          \
+        switch ((type)) {                                                           \
+        case LOG_INFO:                                                              \
+            snprintf(_buf, sizeof(_buf), "[%sINFO%s] %s\n", ZD_LOG_COLOR_YELLOW,    \
+                    ZD_LOG_COLOR_RESET, (fmt), ##__VA_ARGS__);                      \
+            fprintf(stderr, "%s", _buf);                                            \
+            break;                                                                  \
+                                                                                    \
+        case LOG_ERRO:                                                              \
+            snprintf(_buf, sizeof(_buf), "[%sERRO%s] %s\n", ZD_LOG_COLOR_RED,       \
+                    ZD_LOG_COLOR_RESET, (fmt), ##__VA_ARGS__);                      \
+            fprintf(stderr, "%s", _buf);                                            \
+            break;                                                                  \
+                                                                                    \
+        case LOG_GOOD:                                                              \
+            snprintf(_buf, sizeof(_buf), "[%sGOOD%s] %s\n", ZD_LOG_COLOR_GREEN,     \
+                    ZD_LOG_COLOR_RESET, (fmt), ##__VA_ARGS__);                      \
+            fprintf(stderr, "%s", _buf);                                            \
+            break;                                                                  \
+                                                                                    \
+        default: break;                                                             \
+        }                                                                           \
     } while(0)
 
 #endif /* ZD_LOG */
@@ -997,5 +1022,171 @@ ZD_DEF void *zd_queue_rear(struct zd_queue *qp)
 }
 
 #endif /* ZD_DS_QUEUE */
+
+#ifdef ZD_PRINT
+
+static inline void __uprint(int opt, ...)
+{
+    va_list args;
+    va_start(args, opt);
+
+    switch (opt) {
+        case OPT_COLOR: {
+            const char *fmt = va_arg(args, const char *);
+            zd_print_color(fmt, args);
+        } break;
+
+        case OPT_S_TBL: {
+            const char ***arg = va_arg(args, const char ***);
+            size_t row  = va_arg(args, size_t);
+            size_t col  = va_arg(args, size_t);
+            zd_print_s_tbl(arg, row, col);
+        } break;
+
+        case OPT_D_TBL: {
+            const char ***arg = va_arg(args, const char ***);
+            size_t row = va_arg(args, size_t);
+            size_t col = va_arg(args, size_t);
+            zd_print_d_tbl(arg, row, col);
+        } break;
+
+        default:
+            break;
+    }
+
+    va_end(args);
+}
+
+#define make_rgb(x, r, g, b)                                \
+    do {                                                    \
+        double factor = 0.3;                                \
+        r = (int)(sin(factor*(double)x+0*M_PI/3)*127+128);  \
+        g = (int)(sin(factor*(double)x+2*M_PI/3)*127+128);  \
+        b = (int)(sin(factor*(double)x+4*M_PI/3)*127+128);  \
+    } while (0)
+
+#define make_color(buf, pos, ch, r, g, b)               \
+    do {                                                \
+        char *fmt = "\x1b[38;2;%d;%d;%dm%c\x1b[0m";     \
+        sprintf(buf+pos, fmt, r, g, b, ch);             \
+        pos += strlen(fmt);                             \
+    } while (0)
+
+ZD_DEF void zd_print_color(const char *fmt, va_list args)
+{
+#if defined(__WIN32)
+
+    fprintf(stderr, "'zd_print' not support for windows :->\n");
+
+#else
+
+    /* calculate the buffer size */
+
+    va_list args_copy;
+    va_copy(args_copy, args);
+    size_t len = vsnprintf(NULL, 0, fmt, args_copy);
+    va_end(args_copy);
+
+    size_t raw_buf_size = len + 1;  /* extra one for '\0' */
+    char *raw_buf = malloc(raw_buf_size);
+    assert(raw_buf != NULL);
+
+    /* output the format string */
+
+    vsnprintf(raw_buf, raw_buf_size, fmt, args);
+
+    /* generate colorful string */
+
+    size_t res_buf_size = 2 * raw_buf_size;
+    char *res_buf = malloc(res_buf_size);
+    assert(res_buf != NULL);
+    size_t pos = 0;
+
+    int r, g, b;
+    for (size_t i = 0; i < strlen(raw_buf); i++) {
+        make_rgb(i, r, g, b);
+        make_color(res_buf, pos, raw_buf[i], r, g, b);
+
+        if (pos >= res_buf_size - 200) {
+            res_buf_size *= 2;
+            res_buf = realloc(res_buf, res_buf_size);
+            assert(res_buf != NULL);
+        }
+    }
+    res_buf[pos] = '\0';
+
+    printf("%s", res_buf);
+
+    free(raw_buf);
+    free(res_buf);
+
+#endif /* platform */
+}
+
+#undef make_color
+#undef make_rgb
+
+#define print_seperator(max_widths, col)                        \
+    do {                                                        \
+        for (size_t j = 0; j < col; j++) {                      \
+            printf("+");                                        \
+            for (size_t i = 0; i < max_widths[j] + 2; i++)      \
+                printf("-");                                    \
+        }                                                       \
+        printf("+\n");                                          \
+    } while (0)                                                 \
+
+
+#define find_max_width(max_widths, row, col, tbl)       \
+    do {                                                \
+        for (size_t i = 0; i < row; i++) {              \
+            for (size_t j = 0; j < col; j++) {          \
+                const char *item = tbl[i][j];           \
+                size_t len = strlen(item);              \
+                if (len > (size_t) max_widths[j])       \
+                    max_widths[j] = len;                \
+            }                                           \
+        }                                               \
+    } while (0)
+
+#define print_table(max_widths, row, col, tbl)                  \
+    do {                                                        \
+        for (size_t i = 0; i < row; i++) {                      \
+            print_seperator(max_widths, col);                   \
+            for (size_t j = 0; j < col; j++)                    \
+                printf("| %-*s ", max_widths[j], tbl[i][j]);    \
+            printf("|\n");                                      \
+        }                                                       \
+        print_seperator(max_widths, col);                       \
+    } while (0)
+
+ZD_DEF void zd_print_d_tbl(const char ***arg, size_t row, size_t col)
+{
+    const char ***tbl = arg;
+
+    int max_widths[col];
+    memset(max_widths, 0, sizeof(max_widths));
+
+    find_max_width(max_widths, row, col, tbl);
+    print_table(max_widths, row, col, tbl);
+}
+
+
+ZD_DEF void zd_print_s_tbl(const char ***arg, size_t row, size_t col)
+{
+    const char *(*tbl)[col] = (const char *(*)[col]) arg;
+
+    int max_widths[col];
+    memset(max_widths, 0, sizeof(max_widths));
+
+    find_max_width(max_widths, row, col, tbl);
+    print_table(max_widths, row, col, tbl);
+}
+
+#undef print_seperator
+#undef find_max_width
+#undef print_table
+
+#endif /* ZD_PRINT */
 
 #endif /* ZD_IMPLEMENTATION */

@@ -7,7 +7,7 @@ void print_colorful_text(void)
 {
     char *buf;
     zd_file_load("./zd_print.c", &buf);
-    zd_printm(OPT_COLOR, "%s", buf);
+    zd_print(OPT_COLOR, "%s", buf);
     free(buf);
 }
 
@@ -18,7 +18,7 @@ void print_static_array(void)
         { "hello", "world" },
         { "hello", "world" }
     };
-    zd_printm(OPT_S_TBL, static_table, 3, 2);
+    zd_print(OPT_S_TBL, static_table, 3, 2);
 }
 
 void print_dynamic_array(void)
@@ -32,7 +32,7 @@ void print_dynamic_array(void)
         dynamic_table[i][1] = "world";
     }
 
-    zd_printm(OPT_D_TBL, dynamic_table, 3, 2);
+    zd_print(OPT_D_TBL, dynamic_table, 3, 2);
 
     for (int i = 0; i < 3; i++)
         free(dynamic_table[i]);

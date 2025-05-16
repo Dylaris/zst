@@ -7,7 +7,7 @@ char *test(void)
 {
     struct zd_string string = {0};
 
-    zd_string_append(&string, "hello world\n", 0);
+    zd_string_append(&string, "hello world\n");
     zd_assert(strcmp(string.buf, "hello world\n") == 0, NULL);
     zd_assert(string.length == strlen("hello world\n"), NULL);
     zd_assert(string.capacity == 128, NULL);
@@ -17,7 +17,7 @@ char *test(void)
     zd_assert(sub_string.length == strlen("hello"), NULL);
     zd_assert(sub_string.capacity == 128, NULL);
 
-    zd_string_append(&sub_string, " dylaris\n", 0);
+    zd_string_append(&sub_string, " %s\n", "dylaris");
     zd_assert(strcmp(sub_string.buf, "hello dylaris\n") == 0, NULL);
     zd_assert(sub_string.length == strlen("hello dylaris\n"), NULL);
     zd_assert(sub_string.capacity == 128, NULL);

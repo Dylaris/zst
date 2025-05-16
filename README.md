@@ -24,3 +24,11 @@ $ lua build.lua -clean
 ```
 
 For more usage examples, you can refer to the examples and the source code.
+
+## note
+
+Since `zd.h` implements a generic data structure, the elements you push into it should be pointers. 
+
+For example, if you want to push an integer, you should pass an `int *`. 
+
+A special note: when pushing strings, you need to pass a `char **`, not a `char *`.

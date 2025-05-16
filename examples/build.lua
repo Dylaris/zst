@@ -10,16 +10,25 @@ local CFLAGS = { "-Wall", "-Wextra", "-I../" }
 local CSTD   = "-std=c11"
 local SRC    = tool.match_file_extension(".c")
 local TARGET = tool.replace_files_extension(SRC, (luabc.os == "WIN") and ".exe" or "")
+local LD_LIB = ""
 
 local function build()
     for i = 1, #SRC do
         local all = cmd:new()
+
         if SRC[i] == "./zd_dynasm.c" then
             CSTD = "-std=gnu11"
         else
             CSTD = "-std=c11"
         end
-        all:append(CC, CFLAGS, CSTD, "-o", TARGET[i], SRC[i])
+
+        if SRC[i] == "./zd_print.c" then
+            LD_LIB = "-lm"
+        else
+            LD_LIB = ""
+        end
+
+        all:append(CC, CFLAGS, CSTD, "-o", TARGET[i], SRC[i], LD_LIB)
     end
 
     local clean = cmd:new("clean")

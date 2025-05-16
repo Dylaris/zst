@@ -6,12 +6,12 @@
 int main(void)
 {
     struct zd_string greet = {0};
-    zd_string_append(&greet, "USE ", 0);
-    zd_string_append(&greet, "zd.h ", 0);
-    zd_string_append(&greet, "RIGHT NOW !!!", 0);
+    zd_string_append(&greet, "USE ");
+    zd_string_append(&greet, "zd.h ");
+    zd_string_append(&greet, "RIGHT NOW !!!");
 
     struct zd_string xyp = {0};
-    zd_string_append(&xyp, "FUCK !!! XYP !!!", 0);
+    zd_string_append(&xyp, "FUCK !!! XYP !!!");
 
     zd_log(LOG_GOOD, greet.buf);
     zd_log(LOG_ERRO, xyp.buf);

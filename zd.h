@@ -2,7 +2,7 @@
  * Author: Dylaris
  * Copyright (c) 2025
  * License: MIT
- * Date: 2025-05-09
+ * Date: 2025-05-16
  *
  * All rights reserved
  */
@@ -13,6 +13,7 @@
  * ZD_STATIC            Restricts the function scope to static
  * ZD_IMPLEMENTATION    Includes function implementation when defined, otherwise only the header is included
  *
+ * ZD_MAKE              Build the c project using only c 
  * ZD_TEST              Simple testing tool
  * ZD_PRINT             Some special print
  * ZD_LOG               Simple logging for information
@@ -26,6 +27,12 @@
  * ZD_DS_HASH           Hash table (based on linked-list)
  * ZD_DS_TRIE           Trie or prefix tree
  * ZD_DS_QUEUE          Queue (based on linked-list)
+ *
+ *
+ * !!! NOTE !!!
+ * Since zd.h implements a generic data structure, the elements you push into it should be pointers. 
+ * For example, if you want to push an integer, you should pass an (int *). 
+ * A special note: when pushing strings, you need to pass a (char **), not a (char *)
  */
 
 #ifndef _ZD_H_
@@ -35,6 +42,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <stdarg.h>
 #include <assert.h>
 
 #ifndef ZD_DEF
@@ -58,6 +66,26 @@ struct zd_testsuite {
 };
 
 static struct zd_testsuite *__suite_ptr__;
+
+#ifndef zd_type_cast
+#ifdef ZD_IMPLEMENTATION
+#define zd_type_cast(obj, type) (type (obj))  
+#else
+#define zd_type_cast(obj, type)
+#endif /* ZD_IMPLEMENTATION */
+#endif /* zd_type_cast */
+
+#ifndef zd_assert
+#ifdef ZD_IMPLEMENTATION
+#define zd_assert(exp, msg)                                     \
+    do {                                                        \
+        if ((exp)) zd_pass(msg);                                \
+        else       zd_fail(msg);                                \
+    } while (0)
+#else
+#define zd_assert(exp, msg)
+#endif /* ZD_IMPLEMENTATION */
+#endif /* zd_assert */
 
 ZD_DEF void zd_pass(const char *msg);
 ZD_DEF void zd_fail(const char *msg);
@@ -109,18 +137,7 @@ struct zd_string {
     size_t capacity;
 };
 
-#ifndef ZD_IMPLEMENTATION
-#define zd_string_appendm
-#else
-#define zd_string_appendm(p_obj, fmt, ...)                  \
-    do {                                                    \
-        char buf[1024];                                     \
-        snprintf(buf, sizeof(buf), (fmt), ##__VA_ARGS__);   \
-        zd_string_append(p_obj, buf, 0);                    \
-    } while (0)
-#endif
-ZD_DEF void zd_string_append(struct zd_string *str, 
-        void *new_str, size_t size);
+ZD_DEF void zd_string_append(struct zd_string *str, const char *fmt, ...);
 ZD_DEF struct zd_string zd_string_sub(struct zd_string *str, 
         size_t src, size_t dest);
 ZD_DEF void zd_string_destroy(void *arg);
@@ -211,24 +228,47 @@ ZD_DEF int zd_file_dump(const char *filename, char *buf, size_t size);
 #ifdef ZD_COMMAND_LINE
 
 struct zd_cmdlopt {
-    struct zd_string name; 
-    struct zd_dyna vals;    /* each element is zd_string */
+    char *name;
+    struct zd_dyna vals;    /* each element is string */
 };
 
 struct zd_cmdl {
-    struct zd_string program;
+    char *program;
     size_t count;
-    struct zd_dyna nopts;   /* each element is zd_string */
+    struct zd_dyna nopts;   /* each element is string */
     struct zd_dyna opts;    /* each element is zd_cmdlopt */
 };
 
 ZD_DEF void zd_cmdl_build(struct zd_cmdl *cmdl, int argc, char **argv);
+ZD_DEF void zd_cmdl_usage(struct zd_cmdl *cmdl, char *(*tbl)[2], size_t cnt);
 ZD_DEF struct zd_dyna zd_cmdl_getopt(struct zd_cmdl *cmdl, 
         const char *optname, int *is_valid);
 ZD_DEF void zd_cmdl_destroy(void *arg);
 ZD_DEF void zd_cmdlopt_destroy(void *arg);
 
 #endif /* ZD_COMMAND_LINE */
+
+#ifdef ZD_MAKE
+
+struct zd_builder {
+    struct zd_dyna cmds;
+};
+
+ZD_DEF void zd_make_init(struct zd_builder *builder);
+ZD_DEF void zd_make_destroy(struct zd_builder *builder);
+ZD_DEF void zd_make_print_cmds(struct zd_builder *builder);
+static void _make_append_cmd(struct zd_builder *builder, ...);
+
+#ifndef zd_make_append_cmd
+#ifdef ZD_IMPLEMENTATION
+#define zd_make_append_cmd(builder, ...) \
+    _make_append_cmd((builder), __VA_ARGS__, NULL)
+#else
+#define zd_make_append_cmd(builder, ...)
+#endif /* ZD_IMPLEMENTATION */
+#endif /* zd_make_append_cmd */
+
+#endif /* ZD_MAKE */
 
 #ifdef ZD_DYNASM
 
@@ -253,24 +293,12 @@ ZD_DEF void zd_dynasm_free(void *addr);
 #ifdef ZD_PRINT
 
 #include <math.h>
-#include <stdarg.h>
 
 #define OPT_COLOR 1
 #define OPT_S_TBL 2
 #define OPT_D_TBL 3
 
-static inline void __uprint(int opt, ...);
-ZD_DEF void zd_print_color(const char *fmt, va_list args);
-ZD_DEF void zd_print_s_tbl(const char ***arg, size_t row, size_t col);
-ZD_DEF void zd_print_d_tbl(const char ***arg, size_t row, size_t col);
-
-#ifndef zd_printm
-#ifdef ZD_IMPLEMENTATION 
-#define zd_printm(_opt, ...) __uprint(_opt, __VA_ARGS__)
-#else
-#define zd_printm(_opt, ...)
-#endif /* ZD_IMPLEMENTATION */
-#endif /* zd_printm */
+ZD_DEF void zd_print(int opt, ...);
 
 #endif /* ZD_PRINT */
 
@@ -286,18 +314,17 @@ ZD_DEF void zd_print_d_tbl(const char ***arg, size_t row, size_t col);
 
 ZD_DEF void zd_cmdl_build(struct zd_cmdl *cmdl, int argc, char **argv)
 {
-    zd_string_append(&cmdl->program, argv[0], strlen(argv[0]));
+    cmdl->program = argv[0];
     cmdl->count = (size_t) argc;
-    zd_dyna_init(&cmdl->nopts, sizeof(struct zd_string));
+    zd_dyna_init(&cmdl->nopts, sizeof(char *));
     zd_dyna_init(&cmdl->opts,  sizeof(struct zd_cmdlopt));
 
     for (int i = 1; i < argc; i++) {
-        struct zd_string arg = {0}; 
-        zd_string_append(&arg, argv[i], strlen(argv[i]));
+        char *arg = argv[i];
 
-        if (arg.buf[0] == '-') { /* option */
+        if (arg[0] == '-') { /* option */
             struct zd_cmdlopt opt = {0};
-            zd_dyna_init(&opt.vals, sizeof(struct zd_string));
+            zd_dyna_init(&opt.vals, sizeof(char *));
 
             /* add the correspoding option values to opt */
             opt.name = arg;
@@ -308,16 +335,22 @@ ZD_DEF void zd_cmdl_build(struct zd_cmdl *cmdl, int argc, char **argv)
                     break;
                 }
                 /* option value for current option */
-                struct zd_string val = {0}; 
-                zd_string_append(&val, argv[i], strlen(argv[i]));
-                zd_dyna_append(&opt.vals, &val);
+                char *val = argv[i];
+                zd_dyna_append(&opt.vals, val);
             }
 
             zd_dyna_append(&cmdl->opts, &opt);
         } else { /* not a option */
-            zd_dyna_append(&cmdl->nopts, &arg);
+            zd_dyna_append(&cmdl->nopts, arg);
         }
     }
+}
+
+ZD_DEF void zd_cmdl_usage(struct zd_cmdl *cmdl, char *(*tbl)[2], size_t cnt)
+{
+    fprintf(stderr, "Usage: %s ...\n", cmdl->program);
+    for (size_t i = 0; i < cnt; i++)
+        fprintf(stderr, "  %-10s\t%s\n", tbl[i][0], tbl[i][1]);
 }
 
 ZD_DEF struct zd_dyna zd_cmdl_getopt(struct zd_cmdl *cmdl, 
@@ -328,7 +361,7 @@ ZD_DEF struct zd_dyna zd_cmdl_getopt(struct zd_cmdl *cmdl,
 
     for (size_t i = 0; i < cmdl->opts.count; i++) {
         struct zd_cmdlopt *saved_opt = zd_dyna_get(&cmdl->opts, i);
-        if (strcmp(saved_opt->name.buf, optname) == 0) {
+        if (strcmp(saved_opt->name, optname) == 0) {
             res = saved_opt->vals;
             *is_valid = 1;
             break;
@@ -341,57 +374,27 @@ ZD_DEF struct zd_dyna zd_cmdl_getopt(struct zd_cmdl *cmdl,
 ZD_DEF void zd_cmdl_destroy(void *arg)
 {
     struct zd_cmdl *cmdl = (struct zd_cmdl *) arg;
-    zd_string_destroy(&cmdl->program);
+    cmdl->program = NULL;
     cmdl->count = 0;
-    zd_dyna_destroy(&cmdl->nopts, zd_string_destroy);
+    zd_dyna_destroy(&cmdl->nopts, NULL);
     zd_dyna_destroy(&cmdl->opts,  zd_cmdlopt_destroy);
 }
 
 ZD_DEF void zd_cmdlopt_destroy(void *arg)
 {
     struct zd_cmdlopt *opt = (struct zd_cmdlopt *) arg;
-    zd_string_destroy(&opt->name);
-    zd_dyna_destroy(&opt->vals, zd_string_destroy);
+    zd_dyna_destroy(&opt->vals, NULL);
 }
 
 #endif /* ZD_COMMAND_LINE */
 
 #ifdef ZD_LOG
 
-#define ZD_LOG_COLOR_RESET   "\x1b[0m"
-#define ZD_LOG_COLOR_RED     "\x1b[31m"
-#define ZD_LOG_COLOR_GREEN   "\x1b[32m"
-#define ZD_LOG_COLOR_YELLOW  "\x1b[33m"
-
 #define LOG_INFO 1
 #define LOG_ERRO 2
 #define LOG_GOOD 3
 
-#define zd_log(type, fmt, ...)                                                      \
-    do {                                                                            \
-        char _buf[1024];     /* f*ck string concat in C */                          \
-        switch ((type)) {                                                           \
-        case LOG_INFO:                                                              \
-            snprintf(_buf, sizeof(_buf), "[%sINFO%s] %s\n", ZD_LOG_COLOR_YELLOW,    \
-                    ZD_LOG_COLOR_RESET, (fmt), ##__VA_ARGS__);                      \
-            fprintf(stderr, "%s", _buf);                                            \
-            break;                                                                  \
-                                                                                    \
-        case LOG_ERRO:                                                              \
-            snprintf(_buf, sizeof(_buf), "[%sERRO%s] %s\n", ZD_LOG_COLOR_RED,       \
-                    ZD_LOG_COLOR_RESET, (fmt), ##__VA_ARGS__);                      \
-            fprintf(stderr, "%s", _buf);                                            \
-            break;                                                                  \
-                                                                                    \
-        case LOG_GOOD:                                                              \
-            snprintf(_buf, sizeof(_buf), "[%sGOOD%s] %s\n", ZD_LOG_COLOR_GREEN,     \
-                    ZD_LOG_COLOR_RESET, (fmt), ##__VA_ARGS__);                      \
-            fprintf(stderr, "%s", _buf);                                            \
-            break;                                                                  \
-                                                                                    \
-        default: break;                                                             \
-        }                                                                           \
-    } while(0)
+ZD_DEF void zd_log(int type, const char *fmt, ...);
 
 #endif /* ZD_LOG */
 
@@ -421,7 +424,7 @@ ZD_DEF int zd_file_load(const char *filename, char **buf)
     }
 
     size_t read_size = fread(*buf, 1, size, fp);
-    if (read_size != size) {
+    if (read_size != (size_t) size) {
         free(*buf);
         *buf = NULL;
         fclose(fp);
@@ -457,18 +460,6 @@ ZD_DEF int zd_file_dump(const char *filename, char *buf, size_t size)
 #define ZD_TEST_COLOR_RESET   "\x1b[0m"
 #define ZD_TEST_COLOR_RED     "\x1b[31m"
 #define ZD_TEST_COLOR_GREEN   "\x1b[32m"
-
-#ifndef zd_type_cast
-#define zd_type_cast(obj, type) (type (obj))  
-#endif /* zd_type_cast */
-
-#ifndef zd_assert
-#define zd_assert(exp, msg)                                     \
-    do {                                                        \
-        if ((exp)) zd_pass(msg);                                \
-        else       zd_fail(msg);                                \
-    } while (0)
-#endif /* zd_assert */
 
 ZD_DEF void zd_pass(const char *msg)
 {
@@ -617,9 +608,23 @@ ZD_DEF void *zd_dyna_next(struct zd_dyna *da)
 
 #ifdef ZD_DS_STRING
 
-ZD_DEF void zd_string_append(struct zd_string *str, void *new_str, size_t len)
+ZD_DEF void zd_string_append(struct zd_string *str, const char *fmt, ...)
 {
-    if (len == 0) len = strlen(new_str);
+    va_list args, args_copy;
+    va_start(args, fmt);
+    va_copy(args_copy, args);
+    size_t len = vsnprintf(NULL, 0, fmt, args_copy);
+    if (len <= 0) {
+        va_end(args_copy);
+        va_end(args);
+        return;
+    }
+    va_end(args_copy);
+
+    char new_str[len+1];
+    vsnprintf(new_str, len + 1, fmt, args);
+    new_str[len] = '\0';
+
     while (str->capacity <= str->length + len + 1) {
         #define ZD_STRING_INIT_CAP 128
         str->capacity = (str->capacity == 0) ? ZD_STRING_INIT_CAP 
@@ -631,6 +636,8 @@ ZD_DEF void zd_string_append(struct zd_string *str, void *new_str, size_t len)
     memcpy(str->buf + str->length, new_str, len);
     str->length += len;
     str->buf[str->length] = '\0';
+
+    va_end(args);
 }
 
 ZD_DEF struct zd_string zd_string_sub(struct zd_string *str, size_t src, size_t dest)
@@ -638,7 +645,12 @@ ZD_DEF struct zd_string zd_string_sub(struct zd_string *str, size_t src, size_t 
     struct zd_string res = {0};
     if (src >= str->length || dest > str->length || src >= dest) 
         return res;
-    zd_string_append(&res, str->buf + src, dest - src);
+
+    char buf[dest-src+1];
+    memcpy(buf, str->buf+src, dest-src);
+    buf[dest-src] = '\0';
+    zd_string_append(&res, buf);
+
     return res;
 }
 
@@ -931,7 +943,7 @@ ZD_DEF void zd_queue_init(struct zd_queue *qp, size_t size)
     qp->count = 0;
     qp->size  = size;
     if (size != 0)
-        zd_dyna_init(&qp->gc, sizeof(struct zd_queue_node *));
+        zd_dyna_init(&qp->gc, sizeof(void *));
 }
 
 ZD_DEF void zd_queue_destroy(struct zd_queue *qp, void (*clear_item)(void *))
@@ -946,15 +958,11 @@ ZD_DEF void zd_queue_destroy(struct zd_queue *qp, void (*clear_item)(void *))
         np = tmp;
     }
 
-    /* You can use the data field in struct zd_queue_node as element of gc 
-       because the address of first gc element is equal to address of gc base.
-       So you will have double free problem */
-    struct zd_queue_node *gc_item;
+    void **gc_item;
     while ((gc_item = zd_dyna_next(&qp->gc)) != NULL) {
         if (clear_item)
-            clear_item(gc_item->data);
-        free(gc_item->data);
-        /* free(gc_item);  do not do that shit */
+            clear_item(*gc_item);
+        free(*gc_item);
     }
     zd_dyna_destroy(&qp->gc, NULL);
 
@@ -985,7 +993,7 @@ ZD_DEF void *zd_queue_pop(struct zd_queue *qp)
         /* just one element */
         void *res = qp->front->data;
 
-        zd_dyna_append(&qp->gc, qp->front);
+        zd_dyna_append(&qp->gc, &qp->front->data);
         free(qp->front);
         qp->head = (struct zd_queue_node) {0};
         qp->front = NULL;
@@ -997,7 +1005,7 @@ ZD_DEF void *zd_queue_pop(struct zd_queue *qp)
         void *res = qp->front->data;
         qp->head.next = qp->front->next;
 
-        zd_dyna_append(&qp->gc, qp->front);
+        zd_dyna_append(&qp->gc, &qp->front->data);
         free(qp->front);
 
         qp->front = qp->head.next;
@@ -1025,39 +1033,11 @@ ZD_DEF void *zd_queue_rear(struct zd_queue *qp)
 
 #ifdef ZD_PRINT
 
-static inline void __uprint(int opt, ...)
-{
-    va_list args;
-    va_start(args, opt);
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
-    switch (opt) {
-        case OPT_COLOR: {
-            const char *fmt = va_arg(args, const char *);
-            zd_print_color(fmt, args);
-        } break;
-
-        case OPT_S_TBL: {
-            const char ***arg = va_arg(args, const char ***);
-            size_t row  = va_arg(args, size_t);
-            size_t col  = va_arg(args, size_t);
-            zd_print_s_tbl(arg, row, col);
-        } break;
-
-        case OPT_D_TBL: {
-            const char ***arg = va_arg(args, const char ***);
-            size_t row = va_arg(args, size_t);
-            size_t col = va_arg(args, size_t);
-            zd_print_d_tbl(arg, row, col);
-        } break;
-
-        default:
-            break;
-    }
-
-    va_end(args);
-}
-
-#define make_rgb(x, r, g, b)                                \
+#define _make_rgb(x, r, g, b)                               \
     do {                                                    \
         double factor = 0.3;                                \
         r = (int)(sin(factor*(double)x+0*M_PI/3)*127+128);  \
@@ -1065,18 +1045,18 @@ static inline void __uprint(int opt, ...)
         b = (int)(sin(factor*(double)x+4*M_PI/3)*127+128);  \
     } while (0)
 
-#define make_color(buf, pos, ch, r, g, b)               \
+#define _make_color(buf, pos, ch, r, g, b)              \
     do {                                                \
         char *fmt = "\x1b[38;2;%d;%d;%dm%c\x1b[0m";     \
         sprintf(buf+pos, fmt, r, g, b, ch);             \
         pos += strlen(fmt);                             \
     } while (0)
 
-ZD_DEF void zd_print_color(const char *fmt, va_list args)
+static void zd_print_color(const char *fmt, va_list args)
 {
 #if defined(__WIN32)
 
-    fprintf(stderr, "'zd_print' not support for windows :->\n");
+    fprintf(stderr, "'zd_print_color' not support for windows :->\n");
 
 #else
 
@@ -1104,8 +1084,8 @@ ZD_DEF void zd_print_color(const char *fmt, va_list args)
 
     int r, g, b;
     for (size_t i = 0; i < strlen(raw_buf); i++) {
-        make_rgb(i, r, g, b);
-        make_color(res_buf, pos, raw_buf[i], r, g, b);
+        _make_rgb(i, r, g, b);
+        _make_color(res_buf, pos, raw_buf[i], r, g, b);
 
         if (pos >= res_buf_size - 200) {
             res_buf_size *= 2;
@@ -1123,10 +1103,7 @@ ZD_DEF void zd_print_color(const char *fmt, va_list args)
 #endif /* platform */
 }
 
-#undef make_color
-#undef make_rgb
-
-#define print_seperator(max_widths, col)                        \
+#define _print_seperator(max_widths, col)                       \
     do {                                                        \
         for (size_t j = 0; j < col; j++) {                      \
             printf("+");                                        \
@@ -1137,7 +1114,7 @@ ZD_DEF void zd_print_color(const char *fmt, va_list args)
     } while (0)                                                 \
 
 
-#define find_max_width(max_widths, row, col, tbl)       \
+#define _find_max_width(max_widths, row, col, tbl)      \
     do {                                                \
         for (size_t i = 0; i < row; i++) {              \
             for (size_t j = 0; j < col; j++) {          \
@@ -1149,44 +1126,162 @@ ZD_DEF void zd_print_color(const char *fmt, va_list args)
         }                                               \
     } while (0)
 
-#define print_table(max_widths, row, col, tbl)                  \
+#define zd_print_table(tbl, row, col)                           \
     do {                                                        \
+        size_t max_widths[col];                                 \
+        memset(max_widths, 0, sizeof(max_widths));              \
+                                                                \
+        _find_max_width(max_widths, row, col, (tbl));           \
+                                                                \
         for (size_t i = 0; i < row; i++) {                      \
-            print_seperator(max_widths, col);                   \
+            _print_seperator(max_widths, col);                  \
             for (size_t j = 0; j < col; j++)                    \
-                printf("| %-*s ", max_widths[j], tbl[i][j]);    \
+                printf("| %-*s ", (int) max_widths[j], (tbl)[i][j]);  \
             printf("|\n");                                      \
         }                                                       \
-        print_seperator(max_widths, col);                       \
+        _print_seperator(max_widths, col);                      \
     } while (0)
 
-ZD_DEF void zd_print_d_tbl(const char ***arg, size_t row, size_t col)
+ZD_DEF void zd_print(int opt, ...)
 {
-    const char ***tbl = arg;
+    va_list args;
+    va_start(args, opt);
 
-    int max_widths[col];
-    memset(max_widths, 0, sizeof(max_widths));
+    switch (opt) {
+        case OPT_COLOR: {
+            const char *fmt = va_arg(args, const char *);
+            zd_print_color(fmt, args);
+        } break;
 
-    find_max_width(max_widths, row, col, tbl);
-    print_table(max_widths, row, col, tbl);
+        case OPT_S_TBL: {
+            const char ***arg = va_arg(args, const char ***);
+            size_t row  = va_arg(args, size_t);
+            size_t col  = va_arg(args, size_t);
+            const char *(*tbl)[col] = (const char *(*)[col]) arg;
+            zd_print_table(tbl, row, col);
+        } break;
+
+        case OPT_D_TBL: {
+            const char ***arg = va_arg(args, const char ***);
+            size_t row = va_arg(args, size_t);
+            size_t col = va_arg(args, size_t);
+            const char ***tbl = arg;
+            zd_print_table(tbl, row, col);
+        } break;
+
+        default:
+            break;
+    }
+
+    va_end(args);
 }
 
-
-ZD_DEF void zd_print_s_tbl(const char ***arg, size_t row, size_t col)
-{
-    const char *(*tbl)[col] = (const char *(*)[col]) arg;
-
-    int max_widths[col];
-    memset(max_widths, 0, sizeof(max_widths));
-
-    find_max_width(max_widths, row, col, tbl);
-    print_table(max_widths, row, col, tbl);
-}
-
-#undef print_seperator
-#undef find_max_width
-#undef print_table
+#undef _make_color
+#undef _make_rgb
+#undef _print_seperator
+#undef _find_max_width
+#undef zd_print_table
 
 #endif /* ZD_PRINT */
+
+#ifdef ZD_LOG
+
+#define ZD_LOG_COLOR_RESET   "\x1b[0m"
+#define ZD_LOG_COLOR_RED     "\x1b[31m"
+#define ZD_LOG_COLOR_GREEN   "\x1b[32m"
+#define ZD_LOG_COLOR_YELLOW  "\x1b[33m"
+
+ZD_DEF void zd_log(int type, const char *fmt, ...)
+{
+    va_list args, args_copy;
+    va_start(args, fmt);
+    va_copy(args_copy, args);
+    size_t len = vsnprintf(NULL, 0, fmt, args_copy);
+    if (len <= 0) {
+        va_end(args_copy);
+        va_end(args);
+        return;
+    }
+    va_end(args_copy);
+
+    size_t buf_size = len + 100;
+    char buf1[buf_size], buf2[buf_size];
+
+    switch ((type)) {
+    case LOG_INFO:
+        snprintf(buf1, buf_size, "[%sINFO%s] %s\n", ZD_LOG_COLOR_YELLOW,
+                ZD_LOG_COLOR_RESET, fmt);
+        break;
+
+    case LOG_ERRO:
+        snprintf(buf1, buf_size, "[%sERRO%s] %s\n", ZD_LOG_COLOR_RED,
+                ZD_LOG_COLOR_RESET, fmt);
+        break;
+
+    case LOG_GOOD:
+        snprintf(buf1, buf_size, "[%sGOOD%s] %s\n", ZD_LOG_COLOR_GREEN,
+                ZD_LOG_COLOR_RESET, fmt);
+        break;
+
+    default:
+        break;
+    }
+
+    vsnprintf(buf2, buf_size, buf1, args);
+    fprintf(stderr, "%s", buf2);
+
+    va_end(args);
+}
+
+#undef ZD_LOG_COLOR_RESET
+#undef ZD_LOG_COLOR_RED
+#undef ZD_LOG_COLOR_GREEN
+#undef ZD_LOG_COLOR_YELLOW
+
+#endif /* ZD_LOG */
+
+#ifdef ZD_MAKE
+
+ZD_DEF void zd_make_init(struct zd_builder *builder)
+{
+    zd_dyna_init(&builder->cmds, sizeof(char **));
+}
+
+static void _make_append_cmd(struct zd_builder *builder, ...)
+{
+    va_list args;
+    va_start(args, builder);
+
+    char *iter = NULL;
+    while ((iter = va_arg(args, char *)) != NULL) {
+        char **cmd = malloc(sizeof(char *));
+        assert(cmd != NULL);
+        *cmd = iter;
+        zd_dyna_append(&builder->cmds, &cmd);
+    }
+
+    va_end(args);
+}
+
+ZD_DEF void zd_make_print_cmds(struct zd_builder *builder)
+{
+    char ***cmd_iter = NULL;
+    while ((cmd_iter = zd_dyna_next(&builder->cmds)) != NULL)
+        printf("%s ", **cmd_iter);
+    printf("\n");
+}
+
+static void builder_clear_item(void *arg)
+{
+    char ***item = arg;
+    free(*item);
+}
+
+ZD_DEF void zd_make_destroy(struct zd_builder *builder)
+{
+    zd_dyna_destroy(&builder->cmds, builder_clear_item);
+}
+
+#endif /* ZD_MAKE */
 
 #endif /* ZD_IMPLEMENTATION */

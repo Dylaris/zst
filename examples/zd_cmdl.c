@@ -14,26 +14,26 @@
  * Here’s an example, and how the layers are organized.
  *
  * struct zd_cmdlopt {
- *     struct zd_string name; 
- *     struct zd_dyna vals;    // each element is zd_string
+ *     char *name; 
+ *     struct zd_dyna vals;    // each element is string
  * };
  * 
  * struct zd_cmdl {
- *     struct zd_string program;
+ *     char *program;
  *     size_t count;
- *     struct zd_dyna nopts;   // each element is zd_string 
+ *     struct zd_dyna nopts;   // each element is string 
  *     struct zd_dyna opts;    // each element is zd_cmdlopt
  * };
  * 
  * !!! EXAMPLE !!!: ./zd_cmdl nothing here -Wall -Wextra -std c11 -I ../src/ -o null null.c -L ../lib/ -l nil
  *
  * cmdl 
- * + program                    (zd_string)
+ * + program                    (char *)
  *     + ./zd_cmdl
  * + count                      (size_t)
  *     + 16
- * + nopts                      (zd_dyna, each item is zd_string type)
- *     + nopts[0]               (zd_string)
+ * + nopts                      (zd_dyna, each item is char * type)
+ *     + nopts[0]               (char *)
  *         + nothing
  *     + nopts[1]
  *         + here
@@ -41,8 +41,8 @@
  *         + NULL
  * + opts                       (zd_dyna, each item is zd_cmdlopt type)
  *     + opts[0]                (zd_dyna)
- *         + name: -Wall        (zd_string)
- *         + vals: NULL         (zd_dyna, each item is zd_string type)
+ *         + name: -Wall        (char *)
+ *         + vals: NULL         (zd_dyna, each item is char * type)
  *     + opts[1]
  *         + name: -Wextra
  *         + vals: NULL
@@ -79,26 +79,38 @@
 
 /* ./zd_cmdl nothing here -Wall -Wextra -std c11 -I ../src/ -o null null.c -L ../lib/ -l nil */
 
+static char *usage[][2] = {
+    { "-I", "header file" },
+    { "-Wall", "" },
+    { "-Wextra", "" },
+    { "-std", "C standard" },
+    { "-o", "output file" },
+    { "-L", "lib directory" },
+    { "-l", "lib name" },
+};
+
 int main(int argc, char **argv)
 {
     struct zd_cmdl cmdl = {0};
     zd_cmdl_build(&cmdl, argc, argv);
 
+    zd_cmdl_usage(&cmdl, usage, sizeof(usage) / sizeof(usage[0]));
+
     /* get the non-options */
     struct zd_dyna *nopts = &cmdl.nopts;
-    struct zd_string *nopt_iter;
+    char *nopt_iter;
     while ((nopt_iter = zd_dyna_next(nopts)) != NULL) {
-        printf("non-option: %s\n", nopt_iter->buf);
+        printf("non-option: %s\n", nopt_iter);
     }
 
     /* get the options (name and values) */
     struct zd_dyna *opts = &cmdl.opts;
     struct zd_cmdlopt *opt_iter;
     while ((opt_iter = zd_dyna_next(opts)) != NULL) {
-        printf("option: %s\n", opt_iter->name.buf);
-        struct zd_string *val_iter;
+        printf("option: %s\n", opt_iter->name);
+        char *val_iter;
         while ((val_iter = zd_dyna_next(&opt_iter->vals)) != NULL) {
-            printf("        %s\n", val_iter->buf);
+            printf("        %s\n", val_iter);
         }
     }
 

@@ -262,7 +262,9 @@ ZD_DEF void zd_cmdlopt_destroy(void *arg);
 #elif defined(__WIN32)
 #endif /* platform */
 
+#if defined(__linux__)
 #include <threads.h>
+#endif
 
 #define EXEC_UNDO   0
 #define EXEC_OK     1
@@ -276,9 +278,11 @@ struct zd_cmd {
 struct zd_builder {
     struct zd_dyna cmds;    /* each element is struct zd_cmd */
     size_t count;
+#if defined(__linux__)
     int *cmds_status;
     size_t cmds_exec_count;
     mtx_t cmds_exec_count_mutex;
+#endif
 };
 
 static void _make_append_cmd(struct zd_builder *builder, ...);
@@ -1288,8 +1292,10 @@ ZD_DEF void zd_make_init(struct zd_builder *builder)
 {
     zd_dyna_init(&builder->cmds, sizeof(struct zd_cmd));
     builder->count = 0;
+#if defined(__linux__)
     builder->cmds_status = NULL;
     builder->cmds_exec_count = 0;
+#endif
 }
 
 static void _make_append_cmd(struct zd_builder *builder, ...)
@@ -1339,11 +1345,13 @@ ZD_DEF void zd_make_destroy(struct zd_builder *builder)
     zd_dyna_destroy(&builder->cmds, NULL);
 
     builder->count = 0;
+#if defined(__linux__)
     builder->cmds_exec_count = 0;
     if (builder->cmds_status != NULL) {
         free(builder->cmds_status);
         builder->cmds_status = NULL;
     }
+#endif
 }
 
 ZD_DEF int zd_cmd_run(struct zd_cmd *cmd)
@@ -1401,6 +1409,7 @@ ZD_DEF int zd_make_run_cmd_sync(struct zd_builder *builder)
     return 0;
 }
 
+#if defined(__linux__)
 static int run_cmd_async(void *arg)
 {
     struct zd_builder *builder = (struct zd_builder *) arg;
@@ -1482,6 +1491,7 @@ ZD_DEF int zd_make_run_cmd_async(struct zd_builder *builder)
 
     return 0;
 }
+#endif
 
 #endif /* ZD_MAKE */
 

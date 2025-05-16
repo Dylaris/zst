@@ -30,9 +30,14 @@
  *
  *
  * !!! NOTE !!!
- * Since zd.h implements a generic data structure, the elements you push into it should be pointers. 
+ *
+ * Since `zd.h` implements a generic data structure, the elements you push into it should be pointers. 
  * For example, if you want to push an integer, you should pass an (int *). 
- * A special note: when pushing strings, you need to pass a (char **), not a (char *)
+ *
+ * Because strings are not of fixed length, they cannot be directly used as elements of these generic data structures. 
+ * Therefore, we use (char **) as the element type of the data structure, pointing to the string. 
+ * Since what we actually want to push into the data structure is (char **), we need to pass (char ***).
+ * If you find this cumbersome, you can simply use the implemented struct zd_string.
  */
 
 #ifndef _ZD_H_
@@ -241,7 +246,7 @@ struct zd_cmdl {
 
 ZD_DEF void zd_cmdl_build(struct zd_cmdl *cmdl, int argc, char **argv);
 ZD_DEF void zd_cmdl_usage(struct zd_cmdl *cmdl, char *(*tbl)[2], size_t cnt);
-ZD_DEF struct zd_dyna zd_cmdl_getopt(struct zd_cmdl *cmdl, 
+ZD_DEF struct zd_dyna zd_cmdl_get_opt(struct zd_cmdl *cmdl, 
         const char *optname, int *is_valid);
 ZD_DEF void zd_cmdl_destroy(void *arg);
 ZD_DEF void zd_cmdlopt_destroy(void *arg);
@@ -250,21 +255,38 @@ ZD_DEF void zd_cmdlopt_destroy(void *arg);
 
 #ifdef ZD_MAKE
 
-struct zd_builder {
-    struct zd_dyna cmds;
+#if defined(__linux__)
+#include <unistd.h>
+#include <sys/wait.h>
+#elif defined(__WIN32)
+#endif /* platform */
+
+struct zd_cmd {
+    char *label;
+    struct zd_dyna args;    /* each element is struct zd_string */
 };
+
+struct zd_builder {
+    struct zd_dyna cmds;    /* each element is struct zd_cmd */
+};
+
+static void _make_append_cmd(struct zd_builder *builder, char *label, ...);
 
 ZD_DEF void zd_make_init(struct zd_builder *builder);
 ZD_DEF void zd_make_destroy(struct zd_builder *builder);
+ZD_DEF struct zd_cmd *zd_make_get_cmd(struct zd_builder *builder, char *label);
 ZD_DEF void zd_make_print_cmds(struct zd_builder *builder);
-static void _make_append_cmd(struct zd_builder *builder, ...);
+ZD_DEF int zd_make_run_cmd(struct zd_builder *builder, char *label);
+ZD_DEF int zd_make_run_cmd_sync(struct zd_builder *builder);
+ZD_DEF int zd_make_run_cmd_async(struct zd_builder *builder);
+ZD_DEF void zd_cmd_destroy(struct zd_cmd *cmd);
 
 #ifndef zd_make_append_cmd
 #ifdef ZD_IMPLEMENTATION
-#define zd_make_append_cmd(builder, ...) \
-    _make_append_cmd((builder), __VA_ARGS__, NULL)
+#define zd_make_append_cmd(builder, label, ...) \
+    _make_append_cmd((builder), (label), __VA_ARGS__, NULL)
 #else
-#define zd_make_append_cmd(builder, ...)
+#define zd_make_append_cmd(builder, label, ...)
 #endif /* ZD_IMPLEMENTATION */
 #endif /* zd_make_append_cmd */
 
@@ -353,7 +375,7 @@ ZD_DEF void zd_cmdl_usage(struct zd_cmdl *cmdl, char *(*tbl)[2], size_t cnt)
         fprintf(stderr, "  %-10s\t%s\n", tbl[i][0], tbl[i][1]);
 }
 
-ZD_DEF struct zd_dyna zd_cmdl_getopt(struct zd_cmdl *cmdl, 
+ZD_DEF struct zd_dyna zd_cmdl_get_opt(struct zd_cmdl *cmdl, 
         const char *optname, int *is_valid)
 {
     *is_valid = 0;
@@ -390,9 +412,9 @@ ZD_DEF void zd_cmdlopt_destroy(void *arg)
 
 #ifdef ZD_LOG
 
-#define LOG_INFO 1
-#define LOG_ERRO 2
-#define LOG_GOOD 3
+#define LOG_INFO  1
+#define LOG_ERROR 2
+#define LOG_GOOD  3
 
 ZD_DEF void zd_log(int type, const char *fmt, ...);
 
@@ -1055,11 +1077,8 @@ ZD_DEF void *zd_queue_rear(struct zd_queue *qp)
 static void zd_print_color(const char *fmt, va_list args)
 {
 #if defined(__WIN32)
-
     fprintf(stderr, "'zd_print_color' not support for windows :->\n");
-
 #else
-
     /* calculate the buffer size */
 
     va_list args_copy;
@@ -1213,7 +1232,7 @@ ZD_DEF void zd_log(int type, const char *fmt, ...)
                 ZD_LOG_COLOR_RESET, fmt);
         break;
 
-    case LOG_ERRO:
+    case LOG_ERROR:
         snprintf(buf1, buf_size, "[%sERRO%s] %s\n", ZD_LOG_COLOR_RED,
                 ZD_LOG_COLOR_RESET, fmt);
         break;
@@ -1242,44 +1261,149 @@ ZD_DEF void zd_log(int type, const char *fmt, ...)
 
 #ifdef ZD_MAKE
 
-ZD_DEF void zd_make_init(struct zd_builder *builder)
+ZD_DEF void zd_cmd_init(struct zd_cmd *cmd, char *label)
 {
-    zd_dyna_init(&builder->cmds, sizeof(char **));
+    cmd->label = (label == NULL) ? "default" : label;
+    zd_dyna_init(&cmd->args, sizeof(struct zd_string));
 }
 
-static void _make_append_cmd(struct zd_builder *builder, ...)
+ZD_DEF void zd_cmd_destroy(struct zd_cmd *cmd)
 {
-    va_list args;
-    va_start(args, builder);
+    cmd->label = NULL;
+    zd_dyna_destroy(&cmd->args, zd_string_destroy);
+}
 
-    char *iter = NULL;
-    while ((iter = va_arg(args, char *)) != NULL) {
-        char **cmd = malloc(sizeof(char *));
-        assert(cmd != NULL);
-        *cmd = iter;
-        zd_dyna_append(&builder->cmds, &cmd);
+ZD_DEF void zd_make_init(struct zd_builder *builder)
+{
+    zd_dyna_init(&builder->cmds, sizeof(struct zd_cmd));
+}
+
+static void _make_append_cmd(struct zd_builder *builder, char *label, ...)
+{
+    bool is_exist = true;
+    struct zd_cmd cmd = {0};
+    struct zd_cmd *cmdp = zd_make_get_cmd(builder, label);
+    if (!cmdp) {
+        is_exist = false;
+        cmdp = &cmd;
+        zd_cmd_init(cmdp, label);
     }
 
-    va_end(args);
+    va_list ap;
+    va_start(ap, label);
+
+    char *arg = NULL;
+    while ((arg = va_arg(ap, char *)) != NULL) {
+        struct zd_string str = {0};
+        zd_string_append(&str, arg);
+        zd_dyna_append(&cmdp->args, &str);
+    }
+
+    if (!is_exist)
+        zd_dyna_append(&builder->cmds, cmdp);
+
+    va_end(ap);
 }
 
 ZD_DEF void zd_make_print_cmds(struct zd_builder *builder)
 {
-    char ***cmd_iter = NULL;
-    while ((cmd_iter = zd_dyna_next(&builder->cmds)) != NULL)
-        printf("%s ", **cmd_iter);
-    printf("\n");
-}
+    struct zd_cmd *cmd_iter = NULL;
+    while ((cmd_iter = zd_dyna_next(&builder->cmds)) != NULL) {
+        struct zd_string cmd_string = {0};
+        zd_string_append(&cmd_string, "label [%s] -> ", cmd_iter->label);
 
-static void builder_clear_item(void *arg)
-{
-    char ***item = arg;
-    free(*item);
+        struct zd_string *arg_iter = NULL;
+        while ((arg_iter = zd_dyna_next(&cmd_iter->args)) != NULL)
+            zd_string_append(&cmd_string, "%s ", arg_iter->buf);
+
+        zd_log(LOG_INFO, cmd_string.buf);
+
+        zd_string_destroy(&cmd_string);
+    }
 }
 
 ZD_DEF void zd_make_destroy(struct zd_builder *builder)
 {
-    zd_dyna_destroy(&builder->cmds, builder_clear_item);
+    struct zd_cmd *cmd_iter = NULL;
+    while ((cmd_iter = zd_dyna_next(&builder->cmds)) != NULL)
+        zd_dyna_destroy(&cmd_iter->args, zd_string_destroy);
+
+    zd_dyna_destroy(&builder->cmds, NULL);
+}
+
+ZD_DEF int zd_make_run_cmd(struct zd_builder *builder, char *label)
+{
+#if defined(__WIN32)
+    zd_log(LOG_INFO, "'zd_make_run_cmd' not support for windows :->");
+    return 1;
+#elif defined(__linux__)
+
+    if (label == NULL)
+        label = "default";
+    struct zd_cmd *cmdp = zd_make_get_cmd(builder, label);
+    if (!cmdp)
+        return 1;
+
+    size_t count = cmdp->args.count;
+    char *args[count + 1];
+    struct zd_string cmd_string = {0};
+    zd_string_append(&cmd_string, "label [%s] -> ", cmdp->label);
+
+    for (size_t i = 0; i < count; i++) {
+        args[i] = ((struct zd_string *) zd_dyna_get(&cmdp->args, i))->buf;
+        zd_string_append(&cmd_string, "%s ", args[i]);
+    }
+    args[count] = NULL;
+
+    zd_log(LOG_INFO, cmd_string.buf);
+
+    pid_t pid = fork();
+    int status = 0;
+
+    if (pid < 0) {
+        zd_log(LOG_ERROR, "fork failed");
+        zd_string_destroy(&cmd_string);
+        return 1;
+    } else if (pid == 0) {
+        execvp(args[0], args);
+        /* child process  shouldn't arrive here */
+        zd_string_destroy(&cmd_string);
+        exit(1);  
+    } else {
+        waitpid(pid, &status, 0);
+        if (status != 0) {
+            zd_log(LOG_ERROR, "exec failed");
+            zd_string_destroy(&cmd_string);
+            return 1;
+        }
+        zd_log(LOG_GOOD, "run successfully");
+    }
+
+    zd_string_destroy(&cmd_string);
+    return 0;
+#endif /* platform */
+}
+
+ZD_DEF int zd_make_run_cmd_sync(struct zd_builder *builder)
+{
+}
+
+ZD_DEF int zd_make_run_async(struct zd_builder *builder)
+{
+}
+
+ZD_DEF struct zd_cmd *zd_make_get_cmd(struct zd_builder *builder, char *label)
+{
+    if (label == NULL)
+        label = "default";
+
+    struct zd_cmd *cmd_iter = NULL;
+    while ((cmd_iter = zd_dyna_next(&builder->cmds)) != NULL)
+        if (strcmp(cmd_iter->label, label) == 0)
+            break;
+    builder->cmds.pos = 0;  /* roll back */
+
+    return cmd_iter;
 }
 
 #endif /* ZD_MAKE */

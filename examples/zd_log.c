@@ -4,9 +4,9 @@
 
 int main(void)
 {
-    zd_log(LOG_ERRO, "this is error message");
-    zd_log(LOG_INFO, "this is info message");
-    zd_log(LOG_GOOD, "this is ok message");
+    zd_log(LOG_ERROR, "this is error message");
+    zd_log(LOG_INFO,  "this is info message");
+    zd_log(LOG_GOOD,  "this is ok message");
 
     return 0;
 }

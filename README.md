@@ -27,8 +27,14 @@ For more usage examples, you can refer to the examples and the source code.
 
 ## note
 
-Since `zd.h` implements a generic data structure, the elements you push into it should be pointers. 
+Since `zd.h` implements a generic data structure, the elements you push into it must be pointers.
 
-For example, if you want to push an integer, you should pass an `int *`. 
+For example, if you want to push an integer, you should pass an `int *`.
 
-A special note: when pushing strings, you need to pass a `char **`, not a `char *`.
+Because strings are not of fixed length, they cannot be directly used as elements in these generic data structures.
+
+Therefore, we use `char **` as the element type for the data structure, which points to the string.
+
+Since what we actually intend to push into the data structure is `char **`, we need to pass `char ***`.
+
+If you find this approach cumbersome, you can simply utilize the implemented `struct zd_string`.

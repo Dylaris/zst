@@ -79,7 +79,7 @@
 
 /* ./zd_cmdl nothing here -Wall -Wextra -std c11 -I ../src/ -o null null.c -L ../lib/ -l nil */
 
-static char *usage[][2] = {
+static const char *usage[][2] = {
     { "-I", "header file" },
     { "-Wall", "" },
     { "-Wextra", "" },

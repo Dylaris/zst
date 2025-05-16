@@ -12,11 +12,11 @@ void build_std(void)
     zd_make_init(&builder);
 
     const char *std_csrc[] = {
-        "zd_cmdl.c", "zd_dyna.c", "zd_dynb.c",
+        "xyp.c", "zd_cmdl.c", "zd_dyna.c", "zd_dynb.c", "zd_log.c",
         "zd_queue.c", "zd_stack.c", "zd_string.c", "zd_test.c"
     };
     const char *std_cexe[] = {
-        "zd_cmdl", "zd_dyna", "zd_dynb",
+        "xyp", "zd_cmdl", "zd_dyna", "zd_dynb", "zd_log",
         "zd_queue", "zd_stack", "zd_string", "zd_test"
     };
 
@@ -29,11 +29,27 @@ void build_std(void)
     zd_make_destroy(&builder);
 }
 
+void build_special(void)
+{
+    struct zd_builder builder = {0};
+    zd_make_init(&builder);
+
+    zd_make_append_cmd(&builder, "gcc", "-Wall", "-Wextra", "-I", "../",
+            "-std=gnu11", "-o", "zd_dynasm", "zd_dynasm.c");
+    zd_make_append_cmd(&builder, "gcc", "-Wall", "-Wextra", "-I", "../",
+            "-std=c11", "-o", "zd_print", "zd_print.c", "-lm");
+
+    zd_make_run_cmd_sync(&builder);
+
+    zd_make_destroy(&builder);
+}
+
 void clear(void)
 {
     const char *clear_files[] = {
-        "zd_cmdl", "zd_dyna", "zd_dynb",
+        "xyp", "zd_cmdl", "zd_dyna", "zd_dynb", "zd_log",
         "zd_queue", "zd_stack", "zd_string", "zd_test", 
+        "zd_dynasm", "zd_print"
     };
 
     for (int i = 0; i < sizeof(clear_files) / sizeof(clear_files[0]); i++)
@@ -55,10 +71,12 @@ int main(int argc, char **argv)
     zd_cmdl_get_opt(&cmdl, "-clear", &is_clear);
     zd_cmdl_get_opt(&cmdl, "-compile", &is_compile);
 
-    if (is_compile)
+    if (is_compile) {
         build_std();
-    else if (is_clear)
+        // build_special();
+    } else if (is_clear) {
         clear();
+    }
 
     zd_cmdl_destroy(&cmdl);
 

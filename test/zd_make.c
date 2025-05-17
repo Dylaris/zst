@@ -1,9 +1,5 @@
 #define ZD_IMPLEMENTATION
 #define ZD_MAKE
-#define ZD_LOG
-#define ZD_COMMAND_LINE
-#define ZD_DS_STRING
-#define ZD_DS_DYNAMIC_ARRAY
 #include "zd.h"
 
 void build_std(void)

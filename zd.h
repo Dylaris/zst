@@ -53,6 +53,23 @@
 #include <stdarg.h>
 #include <assert.h>
 
+/* handle some dependencies between macros */
+#ifdef ZD_COMMAND_LINE
+  #define ZD_DS_DYNAMIC_ARRAY
+#endif
+#ifdef ZD_MAKE
+  #define ZD_LOG
+  #define ZD_COMMAND_LINE
+  #define ZD_DS_STRING
+  #define ZD_DS_DYNAMIC_ARRAY
+#endif
+#ifdef ZD_DS_QUEUE
+  #define ZD_DS_DYNAMIC_ARRAY
+#endif
+#ifdef ZD_DS_STACK
+  #define ZD_DS_DYNAMIC_ARRAY
+#endif
+
 #define NOT_SUPPORT(msg)                            \
     do {                                            \
         fprintf(stderr, "'%s' not support\n", msg); \

@@ -1,6 +1,5 @@
 #define ZD_IMPLEMENTATION
 #define ZD_TEST
-#define ZD_DS_DYNAMIC_ARRAY
 #define ZD_COMMAND_LINE
 #include "zd.h"
 

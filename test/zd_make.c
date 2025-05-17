@@ -20,11 +20,15 @@ void build_std(void)
         "zd_queue", "zd_stack", "zd_string", "zd_test"
     };
 
-    for (size_t i = 0; i < sizeof(std_csrc) / sizeof(std_csrc[0]); i++)
-        zd_make_append_cmd(&builder, "gcc", "-Wall", "-Wextra", "-I", "../",
+    for (size_t i = 0; i < sizeof(std_csrc) / sizeof(std_csrc[0]); i++) {
+        struct zd_cmd cmd = {0};
+        zd_cmd_init(&cmd);
+        zd_cmd_append_arg(&cmd, "gcc", "-Wall", "-Wextra", "-I", "../",
                 "-std=c11", "-o", std_cexe[i], std_csrc[i]);
+        zd_make_append_cmd(&builder, &cmd);
+    }
 
-    zd_make_run_cmd_sync(&builder);
+    zd_make_run_sync(&builder);
 
     zd_make_destroy(&builder);
 }
@@ -47,13 +51,12 @@ int main(int argc, char **argv)
 
     const char *usage[][2] = {
         { "-compile", "compile all files" },
-        { "-clear", "clear the generated files" },
+        { "-clean", "clear the generated files" },
     };
     zd_cmdl_usage(&cmdl, usage, sizeof(usage) / sizeof(usage[0]));
 
-    int is_clear = 0, is_compile = 0;
-    zd_cmdl_get_opt(&cmdl, "-clear", &is_clear);
-    zd_cmdl_get_opt(&cmdl, "-compile", &is_compile);
+    bool is_clear = zd_cmdl_isuse(&cmdl, "-clean");
+    bool is_compile = zd_cmdl_isuse(&cmdl, "-compile");
 
     if (is_compile)
         build_std();

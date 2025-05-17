@@ -67,9 +67,9 @@ static char *test4(void)
 
 static char *test5(void)
 {
-    int is_valid = 0;
-    struct zd_dyna vals = zd_cmdl_get_opt(&cmdl, "-opt1", &is_valid);
-    zd_assert(is_valid == 1, NULL);
+    struct zd_dyna vals = {0};
+    bool is_valid = zd_cmdl_get_optval(&cmdl, "-opt1", &vals);
+    zd_assert(is_valid == true, NULL);
     zd_assert(vals.count == 2, NULL);
 
     char *p_string;
@@ -77,8 +77,8 @@ static char *test5(void)
     p_string = (char *) zd_dyna_get(&vals, 1); zd_assert(strcmp(p_string, "val1_2") == 0, NULL);
     p_string = (char *) zd_dyna_get(&vals, 2); zd_assert(p_string == NULL, NULL);
 
-    vals = zd_cmdl_get_opt(&cmdl, "-opt6", &is_valid);
-    zd_assert(is_valid == 0, NULL);
+    is_valid = zd_cmdl_get_optval(&cmdl, "-opt6", &vals);
+    zd_assert(is_valid == false, NULL);
     zd_assert(vals.count == 0, NULL);
 
     return "test cmdl get_opt done!";

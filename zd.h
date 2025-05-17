@@ -2,7 +2,7 @@
  * Author: Dylaris
  * Copyright (c) 2025
  * License: MIT
- * Date: 2025-05-16
+ * Date: 2025-05-17
  *
  * All rights reserved
  */
@@ -10,23 +10,26 @@
 /*
  * Usage: Define a few macros to enable the corresponding functions
  *
- * ZD_STATIC            Restricts the function scope to static
- * ZD_IMPLEMENTATION    Includes function implementation when defined, otherwise only the header is included
+ *   ZD_STATIC            Restricts the function scope to static
+ *   ZD_IMPLEMENTATION    Includes function implementation when defined, otherwise only the header is included
  *
- * ZD_MAKE              Build the c project using only c 
- * ZD_TEST              Simple testing tool
- * ZD_PRINT             Some special print
- * ZD_LOG               Simple logging for information
- * ZD_FS                Some operations about file and directory
- * ZD_DYNASM            A simple way to use 'dynasm' (A stupid thing :->)
- * ZD_COMMAND_LINE      Some operations about command line (option, ...)
- * ZD_DS_DYNAMIC_ARRAY  Dynamic array
- * ZD_DS_DYNAMIC_BUFFER Dynamic buffer
- * ZD_DS_STRING         String
- * ZD_DS_STACK          Stack
- * ZD_DS_HASH           Hash table (based on linked-list)
- * ZD_DS_TRIE           Trie or prefix tree
- * ZD_DS_QUEUE          Queue (based on linked-list)
+ * '+' means you can use it in 'linux' and 'windows', otherwise only 'linux'
+ *
+ * + ZD_MAKE              Build the c project using only c 
+ * + ZD_TEST              Simple testing tool
+ * + ZD_PRINT             Some special print
+ * + ZD_LOG               Simple logging for information
+ * + ZD_FS                Some operations about file and directory
+ *   ZD_DYNASM            A simple way to use 'dynasm' (A stupid thing :->)
+ *   ZD_COROUTINE         A simple coroutine implementation (based on GNU GCC)
+ * + ZD_COMMAND_LINE      Some operations about command line (option, ...)
+ * + ZD_DS_DYNAMIC_ARRAY  Dynamic array
+ * + ZD_DS_DYNAMIC_BUFFER Dynamic buffer
+ * + ZD_DS_STRING         String
+ * + ZD_DS_STACK          Stack
+ * + ZD_DS_HASH           Hash table (based on linked-list)
+ * + ZD_DS_TRIE           Trie or prefix tree
+ * + ZD_DS_QUEUE          Queue (based on linked-list)
  *
  *
  * !!! NOTE !!!
@@ -396,6 +399,72 @@ ZD_DEF void zd_dynasm_free(void *addr);
 ZD_DEF void zd_print(int opt, ...);
 
 #endif /* ZD_PRINT */
+
+#ifdef ZD_COROUTINE
+
+#if defined(__linux__) && defined(__GNUC__)
+
+#define COROUTINE_STACK_SIZE (16*1024)
+#define PROTECTION_REGION    64
+
+// 64bit (context.regs[14])
+// low
+//      | regs[0]:  r15 |
+//      | regs[1]:  r14 |
+//      | regs[2]:  r13 |
+//      | regs[3]:  r12 |
+//      | regs[4]:  r9  |
+//      | regs[5]:  r8  |
+//      | regs[6]:  rbp |
+//      | regs[7]:  rdi |
+//      | regs[8]:  rsi |
+//      | regs[9]:  ret |   // return address
+//      | regs[10]: rdx |
+//      | regs[11]: rcx |
+//      | regs[12]: rbx |
+//      | regs[13]: rsp |
+// high
+
+enum ctx_reg_idx {
+    CTX_R15, CTX_R14, CTX_R13, CTX_R12, CTX_R9,  CTX_R8,  CTX_RBP,
+    CTX_RDI, CTX_RSI, CTX_RET, CTX_RDX, CTX_RCX, CTX_RBX, CTX_RSP
+};
+
+#define ST_READY   0
+#define ST_RUNNING 1
+#define ST_SUSPEND 2
+#define ST_DEAD    3
+
+struct zd_coctx {
+    void *regs[14];
+    size_t stack_size;
+    void *stack_base;
+    int status;
+    int id;
+};
+
+struct zd_colib {
+    struct zd_dyna coctxs;
+    struct zd_stack back_stk;   /* record the back address to resume() invoke */
+    struct zd_coctx *cur_coctx;
+};
+
+static void __attribute__((naked)) zd_coctx_swap(struct zd_coctx *cur,
+        struct zd_coctx *next);
+ZD_DEF struct zd_colib *zd_colib_init(void);
+ZD_DEF void zd_colib_destroy(struct zd_colib *colib);
+ZD_DEF struct zd_coctx *zd_coctx_create(struct zd_colib *colib,
+        void (*task)(void *), void *arg);
+ZD_DEF void zd_coctx_resume(struct zd_colib *colib, struct zd_coctx *next);
+ZD_DEF void zd_coctx_yield(struct zd_colib *colib);
+ZD_DEF void zd_coctx_finish(struct zd_colib *colib);
+ZD_DEF void zd_coctx_collect(struct zd_colib *colib, struct zd_coctx *co);
+ZD_DEF size_t zd_coctx_alive(struct zd_colib *colib);
+ZD_DEF int zd_coctx_workid(struct zd_colib *colib);
+
+#endif /* platform */
+
+#endif /* ZD_COROUTINE */
 
 #ifdef __cplusplus
 }
@@ -1701,5 +1770,193 @@ ZD_DEF int zd_make_run_cmd_async(struct zd_builder *builder)
 #endif
 
 #endif /* ZD_MAKE */
+
+#ifdef ZD_COROUTINE
+
+#if defined(__linux__) && defined(__GNUC__)
+
+static void __attribute__((naked)) zd_coctx_swap(struct zd_coctx *cur,
+        struct zd_coctx *next)
+{
+    (void) cur;
+    (void) next;
+    
+    __asm__ __volatile__(
+        /* store current coroutine's context */
+        "leaq (%rsp), %rax\n\t"
+        "movq %rax, 104(%rdi)\n\t"
+        "movq %rbx, 96(%rdi)\n\t"
+        "movq %rcx, 88(%rdi)\n\t"
+        "movq %rdx, 80(%rdi)\n\t"
+        "movq 0(%rax), %rax\n\t"
+        "movq %rax, 72(%rdi)\n\t"
+        "movq %rsi, 64(%rdi)\n\t"
+        "movq %rdi, 56(%rdi)\n\t"
+        "movq %rbp, 48(%rdi)\n\t"
+        "movq %r8, 40(%rdi)\n\t"
+        "movq %r9, 32(%rdi)\n\t"
+        "movq %r12, 24(%rdi)\n\t"
+        "movq %r13, 16(%rdi)\n\t"
+        "movq %r14, 8(%rdi)\n\t"
+        "movq %r15, (%rdi)\n\t"
+        "xorq %rax, %rax\n\t"
+
+        /* restore next coroutine's context */
+        "movq 48(%rsi), %rbp\n\t"
+        "movq 104(%rsi), %rsp\n\t"
+        "movq (%rsi), %r15\n\t"
+        "movq 8(%rsi), %r14\n\t"
+        "movq 16(%rsi), %r13\n\t"
+        "movq 24(%rsi), %r12\n\t"
+        "movq 32(%rsi), %r9\n\t"
+        "movq 40(%rsi), %r8\n\t"
+        "movq 56(%rsi), %rdi\n\t"
+        "movq 80(%rsi), %rdx\n\t"
+        "movq 88(%rsi), %rcx\n\t"
+        "movq 96(%rsi), %rbx\n\t"
+        "leaq 8(%rsp), %rsp\n\t"
+        "pushq 72(%rsi)\n\t"
+        "movq 64(%rsi), %rsi\n\t"
+        "ret\n\t"
+    );
+}
+
+ZD_DEF struct zd_colib *zd_colib_init(void)
+{
+    struct zd_colib *colib = malloc(sizeof(struct zd_colib));
+    assert(colib != NULL);
+
+    zd_dyna_init(&colib->coctxs, sizeof(struct zd_coctx));
+    zd_stack_init(&colib->back_stk, sizeof(struct zd_coctx *));
+
+    /* main coroutine */
+    struct zd_coctx co = {0};
+    co.status = ST_RUNNING;
+    co.id = colib->coctxs.count;
+
+    zd_dyna_append(&colib->coctxs, &co);
+
+    colib->cur_coctx = zd_dyna_get(&colib->coctxs, colib->coctxs.count - 1);
+
+    return colib;
+}
+
+static inline void clear_coroutine(void *arg)
+{
+    struct zd_coctx *co = (struct zd_coctx *) arg;
+    memset(co->regs, 0, sizeof(co->regs));
+    if (co->stack_base != NULL)
+        free(co->stack_base);
+    co->stack_base = NULL;
+    co->stack_size = 0;
+    co->status = -1;
+    co->id = -1;
+}
+
+ZD_DEF void zd_colib_destroy(struct zd_colib *colib)
+{
+    colib->cur_coctx = NULL;
+    zd_stack_destroy(&colib->back_stk, NULL);
+    zd_dyna_destroy(&colib->coctxs, clear_coroutine);
+    free(colib);
+}
+
+ZD_DEF struct zd_coctx *zd_coctx_create(struct zd_colib *colib,
+        void (*task)(void *), void *arg)
+{
+    struct zd_coctx co = {0};
+    co.stack_size = COROUTINE_STACK_SIZE;
+    co.stack_base = malloc(COROUTINE_STACK_SIZE);
+    assert(co.stack_base != NULL);
+    co.regs[CTX_RET] = task;
+    co.regs[CTX_RSP] = (char *) co.stack_base
+        + co.stack_size - PROTECTION_REGION;     /* reserve some bytes for protection */
+    co.regs[CTX_RDI] = arg;
+    co.status = ST_READY;
+    co.id = colib->coctxs.count;
+
+    zd_dyna_append(&colib->coctxs, &co);
+
+    return zd_dyna_get(&colib->coctxs, colib->coctxs.count - 1);
+}
+
+ZD_DEF void zd_coctx_resume(struct zd_colib *colib, struct zd_coctx *next)
+{
+    if (next->status != ST_SUSPEND && next->status != ST_READY)
+        return;
+
+    zd_stack_push(&colib->back_stk, &colib->cur_coctx);
+    colib->cur_coctx->status = ST_SUSPEND;
+
+    struct zd_coctx *cur = colib->cur_coctx;
+    colib->cur_coctx = next;
+    colib->cur_coctx->status = ST_RUNNING;
+
+    zd_coctx_swap(cur, next);
+}
+
+ZD_DEF void zd_coctx_yield(struct zd_colib *colib)
+{
+    if (colib->cur_coctx->status != ST_RUNNING)
+        return;
+
+    colib->cur_coctx->status = ST_SUSPEND;
+    struct zd_coctx *cur = colib->cur_coctx;
+
+    struct zd_coctx *next = *(struct zd_coctx **) 
+        zd_stack_pop(&colib->back_stk);
+    assert(next != NULL);
+    colib->cur_coctx = next;
+    colib->cur_coctx->status = ST_RUNNING;
+
+    zd_coctx_swap(cur, next);
+}
+
+ZD_DEF void zd_coctx_finish(struct zd_colib *colib)
+{
+    colib->cur_coctx->status = ST_DEAD;
+    struct zd_coctx *cur = colib->cur_coctx;
+
+    struct zd_coctx *next = *(struct zd_coctx **) 
+        zd_stack_pop(&colib->back_stk);
+    assert(next != NULL);
+    colib->cur_coctx = next;
+    colib->cur_coctx->status = ST_RUNNING;
+
+    zd_coctx_swap(cur, next);
+}
+
+ZD_DEF void zd_coctx_collect(struct zd_colib *colib, struct zd_coctx *co)
+{
+    if (co->status != ST_DEAD)
+        return;
+    size_t off = co - (struct zd_coctx *) colib->coctxs.base;
+    if (off >= colib->coctxs.count)
+        return;
+    zd_dyna_remove(&colib->coctxs, off, clear_coroutine);
+}
+
+ZD_DEF size_t zd_coctx_alive(struct zd_colib *colib)
+{
+    struct zd_coctx *co_iter = NULL;
+    size_t alive = 0;
+
+    while ((co_iter = zd_dyna_next(&colib->coctxs)) != NULL) {
+        if (co_iter->status != ST_DEAD)
+            alive += 1;
+    }
+    colib->coctxs.pos = 0;
+
+    return alive;
+}
+
+ZD_DEF int zd_coctx_workid(struct zd_colib *colib)
+{
+    return colib->cur_coctx->id;
+}
+
+#endif /* platform */
+
+#endif /* ZD_COROUTINE */
 
 #endif /* ZD_IMPLEMENTATION */

@@ -1,5 +1,4 @@
 #define ZD_IMPLEMENTATION
-#define ZD_DS_DYNAMIC_ARRAY
 #define ZD_DS_QUEUE
 #include "zd.h"
 

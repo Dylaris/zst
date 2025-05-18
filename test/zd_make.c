@@ -1,11 +1,11 @@
 #define ZD_IMPLEMENTATION
-#define ZD_MAKE
+#define ZD_BUILD
 #include "zd.h"
 
 void build_std(void)
 {
     struct zd_builder builder = {0};
-    zd_make_init(&builder);
+    zd_build_init(&builder);
 
     const char *std_csrc[] = {
         "zd_cmdl.c", "zd_dyna.c", "zd_dynb.c",
@@ -21,12 +21,12 @@ void build_std(void)
         zd_cmd_init(&cmd);
         zd_cmd_append_arg(&cmd, "gcc", "-Wall", "-Wextra", "-I", "../",
                 "-std=c11", "-o", std_cexe[i], std_csrc[i]);
-        zd_make_append_cmd(&builder, &cmd);
+        zd_build_append_cmd(&builder, &cmd);
     }
 
-    zd_make_run_sync(&builder);
+    zd_build_run_sync(&builder);
 
-    zd_make_destroy(&builder);
+    zd_build_destroy(&builder);
 }
 
 void clear(void)

@@ -1,7 +1,5 @@
 #define ZD_IMPLEMENTATION
 #define ZD_COROUTINE
-#define ZD_DS_STACK
-#define ZD_DS_DYNAMIC_ARRAY
 #include "zd.h"
 
 struct zd_colib *colib = NULL;

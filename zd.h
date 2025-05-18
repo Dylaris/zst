@@ -15,7 +15,7 @@
  *
  * '+' means you can use it in 'linux' and 'windows', otherwise only 'linux'
  *
- * + ZD_MAKE              Build the c project using only c 
+ * + ZD_BUILD             Build the c project using only c 
  * + ZD_TEST              Simple testing tool
  * + ZD_PRINT             Some special print
  * + ZD_LOG               Simple logging for information
@@ -55,19 +55,45 @@
 
 /* handle some dependencies between macros */
 #ifdef ZD_COMMAND_LINE
-  #define ZD_DS_DYNAMIC_ARRAY
+  #ifndef ZD_DS_DYNAMIC_ARRAY
+    #define ZD_DS_DYNAMIC_ARRAY
+  #endif
 #endif
-#ifdef ZD_MAKE
-  #define ZD_LOG
-  #define ZD_COMMAND_LINE
-  #define ZD_DS_STRING
-  #define ZD_DS_DYNAMIC_ARRAY
+
+#ifdef ZD_COROUTINE
+  #ifndef ZD_DS_DYNAMIC_ARRAY
+    #define ZD_DS_DYNAMIC_ARRAY
+  #endif
+  #ifndef ZD_DS_STACK
+    #define ZD_DS_STACK
+  #endif
 #endif
+
+#ifdef ZD_BUILD
+  #ifndef ZD_LOG
+    #define ZD_LOG
+  #endif
+  #ifndef ZD_COMMAND_LINE
+    #define ZD_COMMAND_LINE
+  #endif
+  #ifndef ZD_DS_STRING
+    #define ZD_DS_STRING
+  #endif
+  #ifndef ZD_DS_DYNAMIC_ARRAY
+    #define ZD_DS_DYNAMIC_ARRAY
+  #endif
+#endif
+
 #ifdef ZD_DS_QUEUE
-  #define ZD_DS_DYNAMIC_ARRAY
+  #ifndef ZD_DS_DYNAMIC_ARRAY
+    #define ZD_DS_DYNAMIC_ARRAY
+  #endif
 #endif
+
 #ifdef ZD_DS_STACK
-  #define ZD_DS_DYNAMIC_ARRAY
+  #ifndef ZD_DS_DYNAMIC_ARRAY
+    #define ZD_DS_DYNAMIC_ARRAY
+  #endif
 #endif
 
 #define NOT_SUPPORT(msg)                            \
@@ -335,7 +361,7 @@ ZD_DEF void zd_cmdlopt_destroy(void *arg);
 
 #endif /* ZD_COMMAND_LINE */
 
-#ifdef ZD_MAKE
+#ifdef ZD_BUILD
 
 #if defined(__linux__)
   #include <unistd.h>
@@ -379,23 +405,27 @@ ZD_DEF void zd_cmd_destroy(struct zd_cmd *cmd);
   #endif /* ZD_IMPLEMENTATION */
 #endif /* zd_cmd_append_arg */
 
-static void _make_append_cmd(struct zd_builder *builder, ...);
-ZD_DEF void zd_make_init(struct zd_builder *builder);
-ZD_DEF void zd_make_destroy(struct zd_builder *builder);
-ZD_DEF void zd_make_print(struct zd_builder *builder);
-ZD_DEF int zd_make_run_sync(struct zd_builder *builder);
-ZD_DEF int zd_make_run_async(struct zd_builder *builder);
+#define BUILD_SRC "build.c"
+#define BUILD_EXE "build"
 
-#ifndef zd_make_append_cmd
+static void _make_append_cmd(struct zd_builder *builder, ...);
+ZD_DEF void zd_build_init(struct zd_builder *builder);
+ZD_DEF void zd_build_self(struct zd_builder *builder);
+ZD_DEF void zd_build_destroy(struct zd_builder *builder);
+ZD_DEF void zd_build_print(struct zd_builder *builder);
+ZD_DEF int zd_build_run_sync(struct zd_builder *builder);
+ZD_DEF int zd_build_run_async(struct zd_builder *builder);
+
+#ifndef zd_build_append_cmd
   #ifdef ZD_IMPLEMENTATION
-    #define zd_make_append_cmd(builder, ...) \
+    #define zd_build_append_cmd(builder, ...) \
         _make_append_cmd((builder), __VA_ARGS__, NULL)
   #else
-    #define zd_make_append_cmd(builder, ...)
+    #define zd_build_append_cmd(builder, ...)
   #endif /* ZD_IMPLEMENTATION */
-#endif /* zd_make_append_cmd */
+#endif /* zd_build_append_cmd */
 
-#endif /* ZD_MAKE */
+#endif /* ZD_BUILD */
 
 #ifdef ZD_DYNASM
 
@@ -1597,7 +1627,7 @@ ZD_DEF void zd_log(int type, const char *fmt, ...)
 
 #endif /* ZD_LOG */
 
-#ifdef ZD_MAKE
+#ifdef ZD_BUILD
 
 static void _cmd_append_arg(struct zd_cmd *cmd, ...)
 {
@@ -1666,7 +1696,16 @@ ZD_DEF int zd_cmd_run(struct zd_cmd *cmd)
     return 0;
 }
 
-ZD_DEF void zd_make_init(struct zd_builder *builder)
+ZD_DEF void zd_build_self(struct zd_builder *builder)
+{
+    struct zd_cmd cmd = {0};
+    zd_cmd_init(&cmd);
+
+    zd_cmd_append_arg(&cmd, "cc", "-o", BUILD_EXE, BUILD_SRC);
+    zd_build_append_cmd(builder, &cmd);
+}
+
+ZD_DEF void zd_build_init(struct zd_builder *builder)
 {
     zd_dyna_init(&builder->cmds, sizeof(struct zd_cmd));
     builder->count = 0;
@@ -1690,7 +1729,7 @@ static void _make_append_cmd(struct zd_builder *builder, ...)
     va_end(ap);
 }
 
-ZD_DEF void zd_make_print(struct zd_builder *builder)
+ZD_DEF void zd_build_print(struct zd_builder *builder)
 {
     struct zd_cmd *cmd_iter = NULL;
     while ((cmd_iter = zd_dyna_next(&builder->cmds)) != NULL) {
@@ -1706,7 +1745,7 @@ ZD_DEF void zd_make_print(struct zd_builder *builder)
     }
 }
 
-ZD_DEF void zd_make_destroy(struct zd_builder *builder)
+ZD_DEF void zd_build_destroy(struct zd_builder *builder)
 {
     struct zd_cmd *cmd_iter = NULL;
     while ((cmd_iter = zd_dyna_next(&builder->cmds)) != NULL)
@@ -1724,7 +1763,7 @@ ZD_DEF void zd_make_destroy(struct zd_builder *builder)
 #endif
 }
 
-ZD_DEF int zd_make_run_sync(struct zd_builder *builder)
+ZD_DEF int zd_build_run_sync(struct zd_builder *builder)
 {
     for (size_t i = 0; i < builder->count; i++) {
         struct zd_cmd *cmd = zd_dyna_get(&builder->cmds, i);
@@ -1765,7 +1804,7 @@ static int run_cmd_async(void *arg)
     return 0;
 }
 
-ZD_DEF int zd_make_run_cmd_async(struct zd_builder *builder)
+ZD_DEF int zd_build_run_async(struct zd_builder *builder)
 {
     /* initialize */
 
@@ -1819,7 +1858,7 @@ ZD_DEF int zd_make_run_cmd_async(struct zd_builder *builder)
 }
 #endif
 
-#endif /* ZD_MAKE */
+#endif /* ZD_BUILD */
 
 #ifdef ZD_COROUTINE
 

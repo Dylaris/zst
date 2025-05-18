@@ -1,15 +1,11 @@
 #define ZD_IMPLEMENTATION
-#define ZD_MAKE
-#define ZD_LOG
-#define ZD_COMMAND_LINE
-#define ZD_DS_STRING
-#define ZD_DS_DYNAMIC_ARRAY
+#define ZD_BUILD
 #include "zd.h"
 
 void build_std(void)
 {
     struct zd_builder builder = {0};
-    zd_make_init(&builder);
+    zd_build_init(&builder);
 
     const char *std_csrc[] = {
         "xyp.c", "zd_cmdl.c", "zd_dyna.c", "zd_dynb.c", "zd_log.c",
@@ -25,18 +21,18 @@ void build_std(void)
         zd_cmd_init(&cmd);
         zd_cmd_append_arg(&cmd, "gcc", "-Wall", "-Wextra", "-I", "../",
                 "-std=c11", "-o", std_cexe[i], std_csrc[i]);
-        zd_make_append_cmd(&builder, &cmd);
+        zd_build_append_cmd(&builder, &cmd);
     }
 
-    zd_make_run_sync(&builder);
+    zd_build_run_sync(&builder);
 
-    zd_make_destroy(&builder);
+    zd_build_destroy(&builder);
 }
 
 void build_special(void)
 {
     struct zd_builder builder = {0};
-    zd_make_init(&builder);
+    zd_build_init(&builder);
     struct zd_cmd cmd1 = {0}, cmd2 = {0};
     zd_cmd_init(&cmd1);
     zd_cmd_init(&cmd2);
@@ -46,11 +42,11 @@ void build_special(void)
     zd_cmd_append_arg(&cmd2, "gcc", "-Wall", "-Wextra", "-I", "../",
             "-std=c11", "-o", "zd_print", "zd_print.c", "-lm");
 
-    zd_make_append_cmd(&builder, &cmd1, &cmd2);
+    zd_build_append_cmd(&builder, &cmd1, &cmd2);
 
-    zd_make_run_sync(&builder);
+    zd_build_run_sync(&builder);
 
-    zd_make_destroy(&builder);
+    zd_build_destroy(&builder);
 }
 
 void clear(void)

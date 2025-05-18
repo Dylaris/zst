@@ -1,4 +1,3 @@
-#include <stdbool.h>
 #define ZD_IMPLEMENTATION
 #define ZD_TEST
 #include "zd.h"

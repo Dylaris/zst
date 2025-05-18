@@ -15,13 +15,13 @@ Example of using `zd_log`:
 
 ```console
 $ cd examples
-$ gcc -I ../ zd_make
-$ ./a.out -compile
+$ cc -I ../ zd_make zd_make.c
+$ ./zd_make -compile
 $ ./zd_log
 [ERROR] This is error message
 [INFO] This is info message
 [GOOD] This is ok message
-$ ./a.out -clear
+$ ./zd_make -clean
 ```
 
 For more usage examples, you can refer to the examples and the source code.

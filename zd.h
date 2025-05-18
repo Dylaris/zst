@@ -329,10 +329,19 @@ ZD_DEF int zd_fs_typeof(const char *pathname);
 ZD_DEF bool zd_fs_loadf(char *filename,
         struct zd_meta_file *res, bool is_binary);
 ZD_DEF bool zd_fs_loadd(char *dirname, struct zd_meta_dir *res);
-ZD_DEF bool zd_fs_dumpf(const char *dest,
-        const char *src, size_t size, bool is_binary);
+ZD_DEF bool zd_fs_dumpf(const char *dest_file,
+        const char *src_buf, size_t size, bool is_binary)
 ZD_DEF void zd_fs_destroy_file(struct zd_meta_file *file);
 ZD_DEF void zd_fs_destroy_dir(struct zd_meta_dir *dir);
+
+#ifndef zd_fs_is_valid
+  #ifdef ZD_IMPLEMENTATION 
+    #define zd_fs_is_valid(pathname) \
+        (zd_fs_typeof(pathname) != FT_NOET && zd_fs_typeof(pathname) != FT_UNKN)
+  #else
+    #define zd_fs_is_valid(pathname)
+  #endif /* ZD_IMPLEMENTATION */
+#endif /* zd_fs_is_valid */
 
 #endif /* ZD_FS */
 
@@ -688,22 +697,246 @@ ZD_DEF bool zd_fs_cd(const char *pathname)
 
 ZD_DEF bool zd_fs_move(const char *src, const char *dest)
 {
+    if (!zd_fs_copy(src, dest) || !zd_fs_remove(src))
+        return false;
+    return true;
 }
 
-ZD_DEF bool zd_fs_copy(const char *src, const char *dest)
+static bool _copy_file(const char *src_file, const char *dest_file)
 {
+    struct zd_meta_file mf = {0};
+    if (!zd_fs_loadf(src_file, &mf, NULL))
+        return false;
+    if (!zd_fs_dumpf(dest_file, mf.content, mf.size, NULL)) {
+        zd_fs_destroy_file(&mf);
+        return false;
+    }
+    zd_fs_destroy_file(&mf);
+    return true;
+}
+
+static bool _copy_dir_recursively(const char *src_dir, const char *dest_dir)
+{
+#if defined(_WIN32)
+    /* create the dest directory */
+    if (CreateDirectory(dest_dir, NULL) || 
+            GetLastError() == ERROR_ALREADY_EXISTS) {
+        /* traverse the directory and recursively copy */
+        WIN32_FIND_DATA findFileData;
+        char search_path[MAX_PATH_SIZE];
+        snprintf(search_path, sizeof(search_path), "%s\\*", src_dir);
+        HANDLE hFind = FindFirstFile(search_path, &findFileData);
+        if (hFind == INVALID_HANDLE_VALUE)
+            return false;
+
+        do {
+            const char *filename = findFileData.cFileName;
+            if (strcmp(filename, ".") == 0 || strcmp(filename, "..") == 0)
+                continue;
+
+            char new_src[MAX_PATH_SIZE];
+            char new_dest[MAX_PATH_SIZE];
+            snprintf(new_src, sizeof(new_src), "%s\\%s", src_dir, filename);
+            snprintf(new_dest, sizeof(new_dest), "%s\\%s", dest_dir, filename);
+
+            if (findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+                if (!_copy_dir_recursively(new_src, new_dest)) {
+                    FindClose(hFind);
+                    return false;
+                }
+            } else {
+                if (!_copy_file(new_src, new_dest)) {
+                    FindClose(hFind);
+                    return false;
+                }
+            }
+        } while (FindNextFile(hFind, &findFileData));
+
+        FindClose(hFind);
+        return true;
+    } else {
+        /* create directory failed */
+        return false;
+    }
+#elif defined(__linux__)
+    struct dirent *entry;
+    DIR *dp = opendir(src_dir);
+    if (!dp)
+        return false;
+
+    /* create the dest directory */
+    if (mkdir(dest_dir, S_IRWXU | S_IRWXG | S_IRWXO) == -1) {
+        if (errno != EEXIST) {
+            closedir(dir);
+            return false;
+        }
+    }
+
+    /* traverse the directory and recursively copy */
+    while ((entry = readdir(dp)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 ||
+                strcmp(entry->d_name, "..") == 0)
+            continue;
+
+        char new_src[MAX_PATH_SIZE];
+        char new_dest[MAX_PATH_SIZE];
+        snprintf(new_src, sizeof(new_src), "%s/%s", src_dir, entry->d_name);
+        snprintf(new_dest, sizeof(new_dest), "%s/%s", dest_dir, entry->d_name);
+
+        if (entry->d_type == DT_DIR) {
+            if (!_copy_dir_recursively(new_src, new_dest)) {
+                closedir(dp);
+                return false;
+            }
+        } else {
+            if (!_copy_file(new_src, new_dest)) {
+                closedir(dp);
+                return false;
+            }
+        }
+    }
+    closedir(dp);
+    return true;
+#else
+    NOT_SUPPORT("zd_fs_copy");
+#endif /* platform */
+}
+
+ZD_DEF bool zd_fs_copy(const char *src, const char *dest, bool is_binary)
+{
+    if (zd_fs_isvalid(src) == false)
+        return false;
+
+    int type = zd_fs_typeof(src);
+    if (type == FT_DIR) {
+        type = zd_fs_typeof(dest);
+        if (type != FT_NOET && type != FT_DIR)
+            return false;
+        return _copy_dir_recursively(src, dest);
+    } else {
+        type = zd_fs_typeof(dest);
+        if (type != FT_NOET && type != FT_REG)
+            return false;
+        return _copy_file(src, dest); 
+    }
 }
 
 ZD_DEF bool zd_fs_mkdir(const char *pathname)
 {
+    if (zd_fs_typeof(pathname) == FT_DIR)
+        return false;
+#if defined(_WIN32)
+    if (CreateDirectory(pathname, NULL))
+        return true;
+    else
+        return false;
+#elif defined(__linux__)
+    if (mkdir(pathname, S_IRWXU | S_IRWXG | S_IRWXO) == 0)
+        return true;
+    else
+        return false;
+#else
+    NOT_SUPPORT("zd_fs_mkdir");
+#endif /* platform */
 }
 
 ZD_DEF bool zd_fs_touch(const char *pathname)
 {
+    FILE *fp = fopen(pathname, "a");
+    if (fp == NULL)
+        return false;
+    fclose(fp);
+    return true;
+}
+
+static bool _remove_dir_recursively(const char *dirpath)
+{
+#if defined(_WIN32)
+    WIN32_FIND_DATA find_file_data;
+    HANDLE h_find = INVALID_HANDLE_VALUE;
+
+    char dir[MAX_PATH_SIZE];
+    snprintf(dir, sizeof(dir), "%s\\*", dirpath);
+
+    h_find = FindFirstFile(dir, &find_file_data);
+    if (h_find == INVALID_HANDLE_VALUE)
+        return false;
+
+    do {
+        if (strcmp(find_file_data.cFileName, ".") != 0 &&
+                strcmp(find_file_data.cFileName, "..") != 0) {
+            char filepath[MAX_PATH_SIZE];
+            snprintf(filepath, sizeof(filepath), "%s\\%s",
+                    dirpath, find_file_data.cFileName);
+
+            int type = zd_fs_typeof(filepath);
+            if (type == FT_NOET || type == FT_UNKN)
+                break;
+
+            if (type == FT_DIR) {
+                if (!_remove_dir_recursively(filepath)) {
+                    FindClose(h_find);
+                    return false;
+                }
+            } else {
+                if (DeleteFile(filepath) != 0) {
+                    FindClose(h_find);
+                    return false;
+                }
+            }
+        }
+    } while (FindNextFile(h_find, &find_file_data) != 0);
+
+    FindClose(h_find);
+    return RemoveDirectory(dirpath) != 0;
+#elif defined(__linux__)
+    DIR *dp = opendir(dirpath);
+    if (!dp)
+        return false;
+
+    struct dirent *entry;
+    while ((entry = readdir(dp)) != NULL) {
+        if (strcmp(entry->d_name, ".") != 0 &&
+                strcmp(entry->d_name, "..") != 0) {
+            char filepath[MAX_PATH_SIZE];
+            snprintf(filepath, sizeof(filepath), "%s/%s",
+                    dirpath, entry->d_name);
+
+            int type = zd_fs_typeof(filepath);
+            if (type == FT_NOET || type == FT_UNKN)
+                break;
+
+            if (type == FT_DIR) {
+                if (!_remove_dir_recursively(filepath)) {
+                    closedir(dp);
+                    return false;
+                }
+            } else {
+                if (unlink(filepath) != 0) {
+                    closedir(dp);
+                    return false;
+                }
+            }
+        }
+    }
+    closedir(dp);
+    return rmdir(dirpath) == 0;
+#else
+    NOT_SUPPORT("zd_fs_remove");
+#endif /* platform */
 }
 
 ZD_DEF bool zd_fs_remove(const char *pathname)
 {
+    int type = zd_fs_typeof(pathname);
+    if (type == FT_NOET) 
+        return true;
+    else if (type == FT_UNKN)
+        return false;
+    else if (type == FT_DIR)
+        return _remove_dir_recursively(pathname);
+    else
+        return remove(pathname) == 0;
 }
 
 ZD_DEF int zd_fs_typeof(const char *pathname)
@@ -825,15 +1058,15 @@ ZD_DEF void zd_fs_destroy_dir(struct zd_meta_dir *dir)
     dir->count = 0;
 }
 
-ZD_DEF bool zd_fs_dumpf(const char *dest,
-        const char *src, size_t size, bool is_binary)
+ZD_DEF bool zd_fs_dumpf(const char *dest_file,
+        const char *src_buf, size_t size, bool is_binary)
 {
     char *mode = is_binary ? "wb" : "w";
-    FILE *fp = fopen(dest, "w");
+    FILE *fp = fopen(dest_file, "w");
     if (!fp) 
         return false;
 
-    size_t write_size = fwrite(src, 1, size, fp);
+    size_t write_size = fwrite(src_buf, 1, size, fp);
     if (write_size != size) {
         fclose(fp);
         return false;

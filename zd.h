@@ -281,6 +281,7 @@ ZD_DEF void *zd_queue_pop(struct zd_queue *qp);
   #include <windows.h>
   #include <direct.h>
   #include <fcntl.h>
+  #include <errno.h>
 #elif defined(__linux__)
   #include <unistd.h>
   #include <dirent.h>
@@ -747,7 +748,7 @@ ZD_DEF bool zd_fs_mkdir(const char *pathname)
     char *dir = path_copy;
 
 #if defined(_WIN32)
-    while (dir = strchr(dir, '\\')) != NULL) {
+    while ((dir = strchr(dir, '\\')) != NULL) {
         /* replace the path separator with a string terminator */
         *dir = '\0';
         /* create this directory */
@@ -812,17 +813,10 @@ static bool _remove_dir_recursively(const char *dirpath)
             if (type == FT_NOET)
                 break;
 
-            if (type == FT_DIR) {
-                if (!_remove_dir_recursively(filepath)) {
-                    FindClose(h_find);
-                    return false;
-                }
-            } else {
-                if (DeleteFile(filepath) != 0) {
-                    FindClose(h_find);
-                    return false;
-                }
-            }
+            if (type == FT_DIR)
+                _remove_dir_recursively(filepath);
+            else
+                DeleteFile(filepath); 
         }
     } while (FindNextFile(h_find, &find_file_data) != 0);
 
@@ -925,8 +919,10 @@ ZD_DEF bool zd_fs_loadd(const char *dirname, struct zd_meta_dir *res)
     assert(res->name != NULL);
 
 #if defined(_WIN32)
+    char buf[MAX_PATH_SIZE];
+    snprintf(buf, sizeof(buf), "%s\\*", dirname);
     WIN32_FIND_DATA findFileData;
-    HANDLE hFind = FindFirstFile(strcat(dirname, "\\*"), &findFileData);
+    HANDLE hFind = FindFirstFile(buf, &findFileData);
 
     if (hFind == INVALID_HANDLE_VALUE) {
         free(res->name);
@@ -1033,14 +1029,16 @@ ZD_DEF bool zd_fs_loadf(const char *filename,
     assert(res->content != NULL);
 
     size_t read_size = fread(res->content, 1, res->size, fp);
+#if defined(__linux__)
     if (read_size != res->size) {
         fclose(fp);
         free(res->content);
         res->content = NULL;
         return false;
     }
-    res->content[res->size] = '\0';
+#endif
 
+    res->content[res->size] = '\0';
     res->line = count_line(res->content, res->size);
 
     fclose(fp);
@@ -1709,11 +1707,7 @@ ZD_DEF void *zd_queue_rear(struct zd_queue *qp)
 
 static void zd_print_color(const char *fmt, va_list args)
 {
-#if defined(_WIN32)
-    NOT_SUPPORT("zd_print_color");
-#elif defined(__linux__)
-    /* calculate the buffer size */
-
+#if defined(_WIN32) || defined(__linux__)
     va_list args_copy;
     va_copy(args_copy, args);
     size_t len = vsnprintf(NULL, 0, fmt, args_copy);

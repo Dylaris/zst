@@ -1,14 +1,15 @@
 #define ZD_IMPLEMENTATION
-#define ZD_FILE
+#define ZD_FS
 #define ZD_PRINT
 #include "zd.h"
 
 void print_colorful_text(void)
 {
-    char *buf;
-    zd_file_load("./zd_print.c", &buf);
-    zd_print(OPT_COLOR, "%s", buf);
-    free(buf);
+    struct zd_meta_file mf = {0};
+
+    zd_fs_loadf("./zd_print.c", &mf, false);
+    zd_print(OPT_COLOR, "%s", mf.content);
+    zd_fs_destroy_mf(&mf);
 }
 
 void print_static_array(void)

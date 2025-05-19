@@ -38,9 +38,9 @@ void build_special(void)
     zd_cmd_init(&cmd2);
 
     zd_cmd_append_arg(&cmd1, "gcc", "-Wall", "-Wextra", "-I", "../",
-            "-std=gnu11", "-o", "zd_dynasm", "zd_dynasm.c");
+            "-o", "zd_dynasm", "zd_dynasm.c");
     zd_cmd_append_arg(&cmd2, "gcc", "-Wall", "-Wextra", "-I", "../",
-            "-std=c11", "-o", "zd_print", "zd_print.c", "-lm");
+            "-o", "zd_print", "zd_print.c", "-lm");
 
     zd_build_append_cmd(&builder, &cmd1, &cmd2);
 

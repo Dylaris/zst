@@ -20,7 +20,7 @@
  * + ZD_PRINT             Some special print
  * + ZD_LOG               Simple logging for information
  * + ZD_FS                Some operations about file and directory
- *   ZD_DYNASM            A simple way to use 'dynasm' (A stupid thing :->)
+ *   ZD_DYNASM            A simple way to use 'dynasm' (A stupid thikg :->)
  *   ZD_COROUTINE         A simple coroutine implementation (based on GNU GCC)
  * + ZD_COMMAND_LINE      Some operations about command line (option, ...)
  * + ZD_DS_DYNAMIC_ARRAY  Dynamic array
@@ -30,6 +30,7 @@
  * + ZD_DS_HASH           Hash table (based on linked-list)
  * + ZD_DS_TRIE           Trie or prefix tree
  * + ZD_DS_QUEUE          Queue (based on linked-list)
+ * + ZD_DS_LINKED_LIST    Linked list
  *
  *
  * !!! NOTE !!!
@@ -274,6 +275,32 @@ ZD_DEF void *zd_queue_pop(struct zd_queue *qp);
 #ifdef ZD_DS_HASH
 
 #endif /* ZD_DS_HASH */
+
+#ifdef ZD_DS_LINKED_LIST
+
+struct zd_list_node {
+    void *data;
+    struct zd_list_node *next;
+};
+
+struct zd_list {
+    struct zd_list_node head;   /* dummy */
+    size_t count;   /* element count */
+    size_t size;    /* the size of each element */
+};
+
+ZD_DEF void zd_list_init(struct zd_list *list, size_t size);
+ZD_DEF void zd_list_destroy(struct zd_list *list, void (*clear_item)(void *));
+ZD_DEF void zd_list_append(struct zd_list *list, void *elem);
+ZD_DEF void zd_list_insert(struct zd_list *list, size_t idx, void *elem);
+ZD_DEF void zd_list_remove(struct zd_list *list, size_t idx,
+        void (*clear_item)(void *));
+ZD_DEF void zd_list_reverse(struct zd_list *list);
+ZD_DEF void *zd_list_get(struct zd_list *list, size_t idx);
+ZD_DEF void *zd_list_set(struct zd_list *list, size_t idx,
+        void *elem, void (*clear_item)(void *));
+
+#endif /* ZD_DS_LINKED_LIST */
 
 #ifdef ZD_FS
 
@@ -2307,5 +2334,167 @@ ZD_DEF int zd_coctx_workid(struct zd_colib *colib)
 #endif /* platform */
 
 #endif /* ZD_COROUTINE */
+
+#ifdef ZD_DS_LINKED_LIST
+
+static struct zd_list_node *zd_list_create_node(void *elem, size_t size)
+{
+    struct zd_list_node *node = malloc(sizeof(struct zd_list_node));
+    assert(node != NULL);
+
+    node->data = malloc(size);
+    assert(node->data != NULL);
+    memcpy(node->data, elem, size);
+    node->next = NULL;
+
+    return node;
+}
+
+ZD_DEF void zd_list_append(struct zd_list *list, void *elem)
+{
+    struct zd_list_node *node = zd_list_create_node(elem, list->size);
+    struct zd_list_node *prev = &list->head, *cur = list->head.next;
+
+    for (size_t i = 0; i < list->count; i++) {
+        prev = cur;
+        cur = cur->next;
+    }
+
+    node->next = cur;
+    prev->next = node;
+
+    list->count++;
+}
+
+ZD_DEF void zd_list_insert(struct zd_list *list, size_t idx, void *elem)
+{
+    struct zd_list_node *node = zd_list_create_node(elem, list->size);
+    struct zd_list_node *prev = &list->head, *cur = list->head.next;
+
+    if (idx > list->count)
+        idx = list->count;
+
+    for (size_t i = 0; i < idx; i++) {
+        prev = cur;
+        cur = cur->next;
+    }
+
+    node->next = cur;
+    prev->next = node;
+
+    list->count++;
+}
+
+ZD_DEF void zd_list_remove(struct zd_list *list, size_t idx,
+        void (*clear_item)(void *))
+{
+    if (idx >= list->count)
+        return;
+
+    struct zd_list_node *prev = &list->head, *cur = list->head.next;
+
+    for (size_t i = 0; i < idx; i++) {
+        prev = cur;
+        cur = cur->next;
+    }
+
+    prev->next = cur->next;
+
+    if (clear_item)
+        clear_item(cur->data);
+    free(cur->data);
+    cur->data = NULL;
+    cur->next = NULL;
+    free(cur);
+
+    list->count--;
+}
+
+ZD_DEF void *zd_list_get(struct zd_list *list, size_t idx)
+{
+    if (idx >= list->count)
+        return NULL;
+
+    struct zd_list_node *cur = list->head.next;
+
+    for (size_t i = 0; i < idx; i++)
+        cur = cur->next;
+
+    return cur->data;
+}
+
+ZD_DEF void *zd_list_set(struct zd_list *list, size_t idx,
+        void *elem, void (*clear_item)(void *))
+{
+    if (idx >= list->count)
+        return NULL;
+
+    struct zd_list_node *cur = list->head.next, *prev = &list->head;
+
+    for (size_t i = 0; i < idx; i++) {
+        prev = cur;
+        cur = cur->next;
+    }
+
+    struct zd_list_node *node = zd_list_create_node(elem, list->size);
+    prev->next = node;
+    node->next = cur->next;
+
+    if (clear_item)
+        clear_item(cur->data);
+    free(cur->data);
+    cur->data = NULL;
+    cur->next = NULL;
+    free(cur);
+
+    return node->data;
+}
+
+ZD_DEF void zd_list_reverse(struct zd_list *list)
+{
+    struct zd_list_node *cur = list->head.next, *prev = NULL, *next;
+
+    while (cur) {
+        next = cur->next;
+        cur->next = prev;
+        prev = cur;
+        cur = next;  
+    }
+    list->head.next = prev;
+}
+
+ZD_DEF void zd_list_init(struct zd_list *list, size_t size)
+{
+    list->head = (struct zd_list_node) {
+        .data = NULL,
+        .next = NULL
+    };
+    list->count = 0;
+    list->size = size;
+}
+
+ZD_DEF void zd_list_destroy(struct zd_list *list, void (*clear_item)(void *))
+{
+    struct zd_list_node *cur = list->head.next, *next = NULL;
+    while (cur) {
+        next = cur->next;
+        if (clear_item)
+            clear_item(cur->data);
+        free(cur->data);
+        cur->data = NULL;
+        cur->next = NULL;
+        free(cur);
+        cur = next;
+    }
+
+    list->head = (struct zd_list_node) {
+        .data = NULL,
+        .next = NULL
+    };
+    list->count = 0;
+    list->size = 0;
+}
+
+#endif /* ZD_DS_LINKED_LIST */
 
 #endif /* ZD_IMPLEMENTATION */

@@ -20,7 +20,7 @@
  * + ZD_PRINT             Some special print
  * + ZD_LOG               Simple logging for information
  * + ZD_FS                Some operations about file and directory
- *   ZD_DYNASM            A simple way to use 'dynasm' (A stupid thikg :->)
+ *   ZD_DYNASM            A simple way to use 'dynasm' (A stupid thing :->)
  *   ZD_COROUTINE         A simple coroutine implementation (based on GNU GCC)
  * + ZD_COMMAND_LINE      Some operations about command line (option, ...)
  * + ZD_DS_DYNAMIC_ARRAY  Dynamic array
@@ -274,6 +274,50 @@ ZD_DEF void *zd_queue_pop(struct zd_queue *qp);
 
 #ifdef ZD_DS_HASH
 
+#define LOAD_TH_UPPER 0.75
+#define LOAD_TH_LOWER 0.25
+
+#define HASH_EXPAND 1
+#define HASH_SHRINK 0
+
+struct zd_hash_node {
+    void *key;
+    void *val;
+    void *next;
+};
+
+struct zd_hash_tbl {
+    struct zd_hash_node **buckets;  /* dymmy head of bucket list */
+    float load;
+    size_t count;
+    size_t capacity;
+    size_t key_size;
+    size_t val_size;
+    bool (*key_cmp)(void *, void *);
+    size_t (*hash_func)(void *);
+    void (*key_free)(void *); 
+    void (*val_free)(void *); 
+};
+
+ZD_DEF void zd_htbl_init(struct zd_hash_tbl *htbl, size_t ksz, size_t vsz,
+        bool (*key_cmp)(void *k1, void *k2), size_t (*hash_func)(void *),
+        void (*key_free)(void *), void (*val_free)(void *));
+ZD_DEF void zd_htbl_destroy(struct zd_hash_tbl *htbl);
+ZD_DEF void zd_htbl_insert(struct zd_hash_tbl *htbl, void *key, void *val);
+ZD_DEF void zd_htbl_remove(struct zd_hash_tbl *htbl, void *key);
+ZD_DEF bool zd_htbl_search(struct zd_hash_tbl *htbl, void *key);
+ZD_DEF void *zd_htbl_get(struct zd_hash_tbl *htbl, void *key);
+ZD_DEF void zd_htbl_set(struct zd_hash_tbl *htbl, void *key, void *val);
+ZD_DEF void zd_htbl_resize(struct zd_hash_tbl *htbl, int mode);
+
+static inline size_t DJB_hash(const char *key, size_t key_len);
+static inline size_t SDBM_hash(const char *key, size_t key_len);
+static inline size_t int_hash(int key);
+static inline size_t float_hash(float key);
+
+#define STRING_HASH(key) DJB_hash((key), strlen(key))
+#define INT_HASH(key) int_hash(key)
+
 #endif /* ZD_DS_HASH */
 
 #ifdef ZD_DS_LINKED_LIST
@@ -292,12 +336,12 @@ struct zd_list {
 ZD_DEF void zd_list_init(struct zd_list *list, size_t size);
 ZD_DEF void zd_list_destroy(struct zd_list *list, void (*clear_item)(void *));
 ZD_DEF void zd_list_append(struct zd_list *list, void *elem);
-ZD_DEF void zd_list_insert(struct zd_list *list, size_t idx, void *elem);
+ZD_DEF void zd_list_insert(struct zd_list *list, void *elem, size_t idx);
 ZD_DEF void zd_list_remove(struct zd_list *list, size_t idx,
         void (*clear_item)(void *));
 ZD_DEF void zd_list_reverse(struct zd_list *list);
 ZD_DEF void *zd_list_get(struct zd_list *list, size_t idx);
-ZD_DEF void *zd_list_set(struct zd_list *list, size_t idx,
+ZD_DEF void zd_list_set(struct zd_list *list, size_t idx,
         void *elem, void (*clear_item)(void *));
 
 #endif /* ZD_DS_LINKED_LIST */
@@ -2355,7 +2399,7 @@ ZD_DEF void zd_list_append(struct zd_list *list, void *elem)
     struct zd_list_node *node = zd_list_create_node(elem, list->size);
     struct zd_list_node *prev = &list->head, *cur = list->head.next;
 
-    for (size_t i = 0; i < list->count; i++) {
+    for (size_t i = 0; i < list->coiunt; i++) {
         prev = cur;
         cur = cur->next;
     }
@@ -2366,7 +2410,7 @@ ZD_DEF void zd_list_append(struct zd_list *list, void *elem)
     list->count++;
 }
 
-ZD_DEF void zd_list_insert(struct zd_list *list, size_t idx, void *elem)
+ZD_DEF void zd_list_insert(struct zd_list *list, void *elem, size_t idx)
 {
     struct zd_list_node *node = zd_list_create_node(elem, list->size);
     struct zd_list_node *prev = &list->head, *cur = list->head.next;
@@ -2403,9 +2447,9 @@ ZD_DEF void zd_list_remove(struct zd_list *list, size_t idx,
     if (clear_item)
         clear_item(cur->data);
     free(cur->data);
+    free(cur);
     cur->data = NULL;
     cur->next = NULL;
-    free(cur);
 
     list->count--;
 }
@@ -2420,10 +2464,10 @@ ZD_DEF void *zd_list_get(struct zd_list *list, size_t idx)
     for (size_t i = 0; i < idx; i++)
         cur = cur->next;
 
-    return cur->data;
+    return cur;
 }
 
-ZD_DEF void *zd_list_set(struct zd_list *list, size_t idx,
+ZD_DEF void zd_list_set(struct zd_list *list, size_t idx,
         void *elem, void (*clear_item)(void *))
 {
     if (idx >= list->count)
@@ -2446,8 +2490,6 @@ ZD_DEF void *zd_list_set(struct zd_list *list, size_t idx,
     cur->data = NULL;
     cur->next = NULL;
     free(cur);
-
-    return node->data;
 }
 
 ZD_DEF void zd_list_reverse(struct zd_list *list)
@@ -2465,9 +2507,9 @@ ZD_DEF void zd_list_reverse(struct zd_list *list)
 
 ZD_DEF void zd_list_init(struct zd_list *list, size_t size)
 {
-    list->head = (struct zd_list_node) {
-        .data = NULL,
-        .next = NULL
+    list->head = {
+        .data = NULL;
+        .next = NULL;
     };
     list->count = 0;
     list->size = size;
@@ -2487,14 +2529,259 @@ ZD_DEF void zd_list_destroy(struct zd_list *list, void (*clear_item)(void *))
         cur = next;
     }
 
-    list->head = (struct zd_list_node) {
-        .data = NULL,
-        .next = NULL
-    };
+    list->head = {0};
     list->count = 0;
     list->size = 0;
 }
 
 #endif /* ZD_DS_LINKED_LIST */
+
+#ifdef ZD_DS_HASH
+
+ZD_DEF void zd_htbl_init(struct zd_hash_tbl *htbl, size_t ksz, size_t vsz,
+        bool (*key_cmp)(void *k1, void *k2), size_t (*hash_func)(void *),
+        void (*key_free)(void *), void (*val_free)(void *))
+{
+
+    htbl->capacity = 1 / LOAD_TH_LOWER;
+    htbl->buckets = malloc(sizeof(struct zd_hash_node *) * htbl->capacity);
+    assert(htbl->buckets != NULL);
+    for (size_t i = 0; i < htbl->capacity; i++) {
+        htbl->buckets[i] = malloc(sizeof(struct zd_hash_node));
+        assert(htbl->buckets[i]);
+        htbl->buckets[i]->next = NULL;
+    }
+    htbl->load      = 0;
+    htbl->count     = 0;
+    htbl->key_size  = ksz;
+    htbl->val_size  = vsz;
+    htbl->key_cmp   = key_cmp;
+    htbl->hash_func = hash_func;
+    htbl->key_free  = key_free;
+    htbl->val_free  = val_free;
+}
+
+static struct zd_hash_node *zd_htbl_create_node(struct zd_hash_tbl *htbl,
+        void *key, void *val)
+{
+    struct zd_hash_node *node = malloc(sizeof(struct zd_hash_node));
+    assert(node != NULL);
+
+    node->key = malloc(htbl->key_size);
+    assert(node->key != NULL);
+    memcpy(node->key, key, htbl->key_size);
+    node->val = malloc(htbl->val_size);
+    assert(node->val != NULL);
+    memcpy(node->val, val, htbl->val_size);
+    node->next = NULL;
+
+    return node;
+}
+
+ZD_DEF void zd_htbl_resize(struct zd_hash_tbl *htbl, int mode)
+{
+    struct zd_hash_tbl new_ht = *htbl;
+    if (mode == HASH_EXPAND)
+        new_ht.capacity = htbl->capacity * 2;
+    else
+        new_ht.capacity = htbl->capacity / 2;
+    new_ht.load = 0;
+    new_ht.count = 0;
+    new_ht.buckets = malloc(sizeof(struct zd_hash_node *) * new_ht.capacity);
+    assert(new_ht.buckets);
+    for (size_t i = 0; i < new_ht.capacity; i++) {
+        new_ht.buckets[i] = malloc(sizeof(struct zd_hash_node));
+        assert(new_ht.buckets[i] != NULL);
+        new_ht.buckets[i]->next = NULL;
+    }
+
+    for (size_t i = 0; i < htbl->capacity; i++) {
+        struct zd_hash_node *cur = htbl->buckets[i]->next;
+        while (cur) {
+            zd_htbl_insert(&new_ht, cur->key, cur->val);
+            cur = cur->next;
+        }
+    }
+
+    struct zd_hash_tbl tmp_ht = *htbl;
+    *htbl = new_ht;
+
+    tmp_ht.key_free = NULL;
+    tmp_ht.val_free = NULL;
+    zd_htbl_destroy(&tmp_ht);
+}
+
+ZD_DEF void zd_htbl_insert(struct zd_hash_tbl *htbl, void *key, void *val)
+{
+    bool is_collision = false;
+    size_t idx = htbl->hash_func(key) % htbl->capacity;
+    if (htbl->buckets[idx]->next)
+        is_collision = true;
+
+    struct zd_hash_node *node = zd_htbl_create_node(htbl, key, val);
+    struct zd_hash_node *cur = htbl->buckets[idx];
+    while (cur && cur->next)
+        cur = cur->next;
+
+    cur->next = node;
+    htbl->count++;
+
+    htbl->load = (float) htbl->count / (float) htbl->capacity;
+    if (htbl->load > LOAD_TH_UPPER)
+        zd_htbl_resize(htbl, HASH_EXPAND);
+}
+
+ZD_DEF bool zd_htbl_search(struct zd_hash_tbl *htbl, void *key)
+{
+    size_t idx = htbl->hash_func(key) % htbl->capacity;
+    struct zd_hash_node *cur = htbl->buckets[idx]->next;
+
+    while (cur) {
+        if (htbl->key_cmp(cur->key, key))
+            return true;
+        cur = cur->next;
+    }
+
+    return false;
+}
+
+static void zd_htbl_destroy_node(struct zd_hash_tbl *htbl,
+        struct zd_hash_node *node)
+{
+    if (htbl->key_free)
+        htbl->key_free(node->key);
+    if (htbl->val_free)
+        htbl->val_free(node->val);
+    free(node->key);
+    free(node->val);
+    node->next = NULL;
+    free(node);
+}
+
+ZD_DEF void zd_htbl_remove(struct zd_hash_tbl *htbl, void *key)
+{
+    if (zd_htbl_search(htbl, key) == false)
+        return;
+
+    size_t idx = htbl->hash_func(key) % htbl->capacity;
+    struct zd_hash_node *cur = htbl->buckets[idx]->next,
+                        *prev = htbl->buckets[idx];
+
+    while (cur) {
+        if (htbl->key_cmp(cur->key, key)) {
+            prev->next = cur->next;
+            zd_htbl_destroy_node(htbl, cur);
+            htbl->count--;
+            break;
+        }
+        prev = cur;
+        cur = cur->next;
+    }
+
+    htbl->load = (float) htbl->count / (float) htbl->capacity;
+    if (htbl->load < LOAD_TH_LOWER)
+        zd_htbl_resize(htbl, HASH_SHRINK);
+}
+
+ZD_DEF void zd_htbl_destroy(struct zd_hash_tbl *htbl)
+{
+    for (size_t i = 0; i < htbl->capacity; i++) {
+        struct zd_hash_node *cur = htbl->buckets[i]->next, *next = NULL;
+        while (cur) {
+            next = cur->next;
+            zd_htbl_destroy_node(htbl, cur);
+            cur = next;
+        }
+        free(htbl->buckets[i]);
+    }
+    if (htbl->buckets)
+        free(htbl->buckets);
+
+    htbl->buckets   = NULL;
+    htbl->load      = 0;
+    htbl->count     = 0;
+    htbl->capacity  = 0;
+    htbl->load      = 0;
+    htbl->key_size  = 0;
+    htbl->val_size  = 0;
+    htbl->key_cmp   = NULL;
+    htbl->hash_func = NULL;
+    htbl->key_free  = NULL;
+    htbl->val_free  = NULL;
+}
+
+ZD_DEF void *zd_htbl_get(struct zd_hash_tbl *htbl, void *key)
+{
+    size_t idx = htbl->hash_func(key) % htbl->capacity;
+    struct zd_hash_node *cur = htbl->buckets[idx]->next;
+
+    while (cur) {
+        if (htbl->key_cmp(cur->key, key))
+            return cur->val;
+        cur = cur->next;
+    }
+    return NULL;
+}
+
+ZD_DEF void zd_htbl_set(struct zd_hash_tbl *htbl, void *key, void *val)
+{
+    size_t idx = htbl->hash_func(key) % htbl->capacity;
+    struct zd_hash_node *cur = htbl->buckets[idx]->next;
+
+    while (cur) {
+        if (htbl->key_cmp(cur->key, key)) {
+            if (htbl->val_free)
+                htbl->val_free(cur->val);
+            memcpy(cur->val, val, htbl->val_size);
+            break;
+        }
+        cur = cur->next;
+    }
+}
+
+static inline size_t DJB_hash(const char *key, size_t key_len)
+{
+    size_t hash = 5381;
+    for (size_t i = 0; i < key_len; i++) {
+        hash = ((hash << 5) + hash) + key[i];
+    }
+    return hash;
+}
+
+static inline size_t SDBM_hash(const char *key, size_t key_len)
+{
+    size_t hash = 0;
+    for (size_t i = 0; i < key_len; i++) {
+        hash = key[i] + (hash << 6) + (hash << 16) - hash;
+    }
+    return hash;
+}
+
+static inline size_t int_hash(int key)
+{
+    size_t hash = (size_t) key;
+    hash = (hash + 0x7ed55d16) + (hash << 12);
+    hash = (hash ^ 0xc761c23c) ^ (hash >> 19);
+    hash = (hash + 0x165667b1) + (hash << 5);
+    hash = (hash + 0xd3a2646c) ^ (hash << 9);
+    hash = (hash + 0xfd7046c5) + (hash << 3);
+    hash = (hash ^ 0xb55a4f09) ^ (hash >> 16);
+    return hash;
+}
+
+static inline size_t float_hash(float key)
+{
+    size_t *ptr = (size_t *) &key;
+    size_t hash = *ptr;
+    hash = (hash + 0x7ed55d16) + (hash << 12);
+    hash = (hash ^ 0xc761c23c) ^ (hash >> 19);
+    hash = (hash + 0x165667b1) + (hash << 5);
+    hash = (hash + 0xd3a2646c) ^ (hash << 9);
+    hash = (hash + 0xfd7046c5) + (hash << 3);
+    hash = (hash ^ 0xb55a4f09) ^ (hash >> 16);
+    return hash;
+}
+
+#endif /* ZD_DS_HASH */
 
 #endif /* ZD_IMPLEMENTATION */

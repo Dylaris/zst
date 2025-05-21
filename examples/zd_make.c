@@ -31,9 +31,6 @@ void compile(void)
         zd_string_destroy(&src);
         zd_string_destroy(&exe);
     }
-    builder.bd_src = "zd_make.c";
-    builder.bd_exe = "zd_make";
-    zd_build_self(&builder, "-I", "../");
 
     zd_build_run_sync(&builder);
 

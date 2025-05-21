@@ -485,22 +485,12 @@ ZD_DEF void zd_cmd_destroy(struct zd_cmd *cmd);
 #endif /* zd_cmd_append_arg */
 
 static void _build_append_cmd(struct zd_builder *builder, ...);
-static void _build_self(struct zd_builder *builder, ...);
-
 ZD_DEF void zd_build_init(struct zd_builder *builder);
 ZD_DEF void zd_build_destroy(struct zd_builder *builder);
+ZD_DEF void zd_build_self(struct zd_builder *builder, ...);
 ZD_DEF void zd_build_print(struct zd_builder *builder);
 ZD_DEF int zd_build_run_sync(struct zd_builder *builder);
 ZD_DEF int zd_build_run_async(struct zd_builder *builder);
-
-#ifndef zd_build_self
-  #ifdef ZD_IMPLEMENTATION
-    #define zd_build_self(builder, ...) \
-        _build_self((builder), ##__VA_ARGS__, NULL)
-  #else
-    #define zd_build_self(builder, ...)
-  #endif /* ZD_IMPLEMENTATION */
-#endif /* zd_build_self */
 
 #ifndef zd_build_append_cmd
   #ifdef ZD_IMPLEMENTATION
@@ -1117,8 +1107,10 @@ ZD_DEF bool zd_fs_loadf(const char *filename,
     res->content = malloc(res->size + 1);    
     assert(res->content != NULL);
 
+#if defined(_WIN32)
+    fread(res->content, 1, res->size, fp);
+#else
     size_t read_size = fread(res->content, 1, res->size, fp);
-#if defined(__linux__)
     if (read_size != res->size) {
         fclose(fp);
         free(res->content);
@@ -2050,7 +2042,7 @@ ZD_DEF int zd_cmd_run(struct zd_cmd *cmd)
     return 0;
 }
 
-static void _build_self(struct zd_builder *builder, ...)
+ZD_DEF void zd_build_self(struct zd_builder *builder, ...)
 {
     struct zd_cmd cmd = {0};
     zd_cmd_init(&cmd);

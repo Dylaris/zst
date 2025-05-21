@@ -2,7 +2,7 @@
  * Author: Dylaris
  * Copyright (c) 2025
  * License: MIT
- * Date: 2025-05-18
+ * Date: 2025-05-21
  *
  * All rights reserved
  */
@@ -20,6 +20,7 @@
  * + ZD_PRINT             Some special print
  * + ZD_LOG               Simple logging for information
  * + ZD_FS                Some operations about file and directory
+ * + ZD_WILDCARD          Wildcard ( '*', '?' )
  *   ZD_DYNASM            A simple way to use 'dynasm' (A stupid thing :->)
  *   ZD_COROUTINE         A simple coroutine implementation (based on GNU GCC)
  * + ZD_COMMAND_LINE      Some operations about command line (option, ...)
@@ -388,12 +389,6 @@ struct zd_meta_dir {
     size_t count;
 };
 
-#ifndef MATCH_EXTENSION
-#define MATCH_EXTENSION(name, extension)  \
-    (strlen(name) >= strlen(extension) && \
-    strcmp(name + strlen(name) - strlen(extension), extension) == 0)
-#endif /* MATCH_EXTENSION */
-
 ZD_DEF char *zd_fs_getname(const char *pathname);
 ZD_DEF bool zd_fs_pwd(char *buf, size_t buf_size);
 ZD_DEF bool zd_fs_cd(const char *pathname);
@@ -600,6 +595,12 @@ ZD_DEF int zd_coctx_workid(struct zd_colib *colib);
 #endif /* platform */
 
 #endif /* ZD_COROUTINE */
+
+#ifdef ZD_WILDCARD
+
+ZD_DEF bool zd_wildcard_match(const char *str, const char *pattern);
+
+#endif /* ZD_WILDCARD */
 
 #ifdef __cplusplus
 }
@@ -2809,5 +2810,43 @@ static inline size_t float_hash(float key)
 }
 
 #endif /* ZD_DS_HASH */
+
+#ifdef ZD_WILDCARD
+
+ZD_DEF bool zd_wildcard_match(const char *str, const char *pattern)
+{
+    if (!str || !pattern)
+        return false;
+
+    int m = strlen(str);
+    int n = strlen(pattern);
+
+    bool dp[m + 1][n + 1];
+    
+    for (int i = 0; i <= m; i++) {
+        for (int j = 0; j <= n; j++)
+            dp[i][j] = false;
+    }
+    dp[0][0] = true;
+
+    for (int j = 1; j <= n; j++) {
+        if (pattern[j - 1] == '*') {
+            dp[0][j] = dp[0][j - 1];
+        }
+    }
+
+    for (int i = 1; i <= m; i++) {
+        for (int j = 1; j <= n; j++) {
+            if (pattern[j - 1] == '*')
+                dp[i][j] = dp[i][j - 1] || dp[i - 1][j];
+            else if (pattern[j - 1] == '?' || str[i - 1] == pattern[j - 1])
+                dp[i][j] = dp[i - 1][j - 1];
+        }
+    }
+
+    return dp[m][n];
+}
+
+#endif /* ZD_WILDCARD */
 
 #endif /* ZD_IMPLEMENTATION */

@@ -1,5 +1,6 @@
 #define ZD_IMPLEMENTATION
 #define ZD_BUILD
+#define ZD_WILDCARD
 #define ZD_FS
 #include "zd.h"
 
@@ -13,7 +14,7 @@ void compile(void)
 
     for (size_t i = 0; i < md.f_cnt; i++) {
         struct zd_string src = {0}, exe = {0};
-        if (!MATCH_EXTENSION(md.files[i], ".c"))
+        if (!zd_wildcard_match(md.files[i], "*.c"))
             continue;
 
         zd_string_append(&src, md.files[i]);
@@ -43,7 +44,7 @@ void clean(void)
     zd_fs_loadd(".", &md);
 
     for (size_t i = 0; i < md.f_cnt; i++) {
-        if (!MATCH_EXTENSION(md.files[i], ".c"))
+        if (!zd_wildcard_match(md.files[i], "*.c"))
             continue;
 
         struct zd_string src = {0}, exe = {0};

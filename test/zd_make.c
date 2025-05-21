@@ -49,6 +49,9 @@ void clean(void)
         struct zd_string src = {0}, exe = {0};
         zd_string_append(&src, md.files[i]);
         exe = zd_string_sub(&src, 0, strlen(md.files[i]) - 2);
+#ifdef _WIN32
+        zd_string_append(&exe, ".exe");
+#endif
 
         zd_fs_remove(exe.base);
 

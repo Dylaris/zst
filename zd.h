@@ -496,7 +496,7 @@ ZD_DEF int zd_build_run_async(struct zd_builder *builder);
 #ifndef zd_build_self
   #ifdef ZD_IMPLEMENTATION
     #define zd_build_self(builder, ...) \
-        _build_self((builder), __VA_ARGS__, NULL)
+        _build_self((builder), ##__VA_ARGS__, NULL)
   #else
     #define zd_build_self(builder, ...)
   #endif /* ZD_IMPLEMENTATION */
@@ -505,7 +505,7 @@ ZD_DEF int zd_build_run_async(struct zd_builder *builder);
 #ifndef zd_build_append_cmd
   #ifdef ZD_IMPLEMENTATION
     #define zd_build_append_cmd(builder, ...) \
-        _build_append_cmd((builder), __VA_ARGS__, NULL)
+        _build_append_cmd((builder), ##__VA_ARGS__, NULL)
   #else
     #define zd_build_append_cmd(builder, ...)
   #endif /* ZD_IMPLEMENTATION */

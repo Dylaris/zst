@@ -170,19 +170,19 @@ struct zd_dyna {
     void *base;
     size_t count;
     size_t capacity;
+    void (*clear_item)(void *);
     size_t size;    /* size of each element */
     size_t pos;     /* iterator position */
 };
 
-ZD_DEF void zd_dyna_init(struct zd_dyna *da, size_t size);
+ZD_DEF void zd_dyna_init(struct zd_dyna *da, size_t size,
+        void (*clear_item)(void *));
 ZD_DEF void zd_dyna_append(struct zd_dyna *da, void *elem);
 ZD_DEF void zd_dyna_insert(struct zd_dyna *da, size_t idx, void *elem);
-ZD_DEF void zd_dyna_remove(struct zd_dyna *da, size_t idx, 
-        void (*clear_item)(void *));
-ZD_DEF void *zd_dyna_set(struct zd_dyna *da, size_t idx, void *elem, 
-        void (*clear_item)(void *));
+ZD_DEF void zd_dyna_remove(struct zd_dyna *da, size_t idx);
+ZD_DEF void zd_dyna_set(struct zd_dyna *da, size_t idx, void *elem);
 ZD_DEF void *zd_dyna_get(struct zd_dyna *da, size_t idx);
-ZD_DEF void zd_dyna_destroy(struct zd_dyna *da, void (*clear_item)(void *));
+ZD_DEF void zd_dyna_destroy(struct zd_dyna *da);
 ZD_DEF void *zd_dyna_next(struct zd_dyna *da);
 
 #endif /* ZD_DS_DYNAMIC_ARRAY */
@@ -190,7 +190,7 @@ ZD_DEF void *zd_dyna_next(struct zd_dyna *da);
 #ifdef ZD_DS_STRING
 
 struct zd_string {
-    char *buf;
+    char *base;
     size_t length;
     size_t capacity;
 };
@@ -208,16 +208,17 @@ struct zd_stack {
     void *base;
     int top;
     size_t capacity;
+    void (*clear_item)(void *);
     size_t size;    /* size of each element */
     struct zd_dyna gc;
 };
 
-ZD_DEF void zd_stack_init(struct zd_stack *stk, size_t size);
+ZD_DEF void zd_stack_init(struct zd_stack *stk, size_t size,
+        void (*clear_item)(void *));
 ZD_DEF void zd_stack_push(struct zd_stack *stk, void *elem);
 ZD_DEF void *zd_stack_pop(struct zd_stack *stk);
 ZD_DEF void *zd_stack_top(struct zd_stack *stk);
-ZD_DEF void zd_stack_destroy(struct zd_stack *stk, 
-        void (*clear_item)(void *));
+ZD_DEF void zd_stack_destroy(struct zd_stack *stk);
 
 #endif /* ZD_DS_STACK */
 
@@ -235,7 +236,7 @@ struct zd_trie_node {
 
 ZD_DEF struct zd_trie_node *zd_trie_create_node(void);
 ZD_DEF void zd_trie_insert(struct zd_trie_node *root, const char *word);
-ZD_DEF bool zd_trie_search(struct zd_trie_node *root, const char *word);
+ZD_DEF int zd_trie_search(struct zd_trie_node *root, const char *word);
 ZD_DEF void zd_trie_destroy(struct zd_trie_node *root);
 
 #endif /* ZD_DS_TRIE */
@@ -253,6 +254,7 @@ struct zd_queue {
     size_t count;
     size_t size;    /* size of each element */
     struct zd_dyna gc;
+    void (*clear_item)(void *);
 };
 
 #ifndef zd_queue_isempty
@@ -263,8 +265,9 @@ struct zd_queue {
   #endif /* ZD_IMPLEMENTATION */
 #endif /* zd_queue_isempty */
 
-ZD_DEF void zd_queue_init(struct zd_queue *qp, size_t size);
-ZD_DEF void zd_queue_destroy(struct zd_queue *qp, void (*clear_item)(void *));
+ZD_DEF void zd_queue_init(struct zd_queue *qp, size_t size,
+        void (*clear_item)(void *));
+ZD_DEF void zd_queue_destroy(struct zd_queue *qp);
 ZD_DEF void *zd_queue_front(struct zd_queue *qp);
 ZD_DEF void *zd_queue_rear(struct zd_queue *qp);
 ZD_DEF void zd_queue_push(struct zd_queue *qp, void *elem);
@@ -331,18 +334,18 @@ struct zd_list {
     struct zd_list_node head;   /* dummy */
     size_t count;   /* element count */
     size_t size;    /* the size of each element */
+    void (*clear_item)(void *);
 };
 
-ZD_DEF void zd_list_init(struct zd_list *list, size_t size);
-ZD_DEF void zd_list_destroy(struct zd_list *list, void (*clear_item)(void *));
-ZD_DEF void zd_list_append(struct zd_list *list, void *elem);
-ZD_DEF void zd_list_insert(struct zd_list *list, void *elem, size_t idx);
-ZD_DEF void zd_list_remove(struct zd_list *list, size_t idx,
+ZD_DEF void zd_list_init(struct zd_list *list, size_t size,
         void (*clear_item)(void *));
+ZD_DEF void zd_list_destroy(struct zd_list *list);
+ZD_DEF void zd_list_append(struct zd_list *list, void *elem);
+ZD_DEF void zd_list_insert(struct zd_list *list, size_t idx, void *elem);
+ZD_DEF void zd_list_remove(struct zd_list *list, size_t idx);
 ZD_DEF void zd_list_reverse(struct zd_list *list);
 ZD_DEF void *zd_list_get(struct zd_list *list, size_t idx);
-ZD_DEF void zd_list_set(struct zd_list *list, size_t idx,
-        void *elem, void (*clear_item)(void *));
+ZD_DEF void zd_list_set(struct zd_list *list, size_t idx, void *elem);
 
 #endif /* ZD_DS_LINKED_LIST */
 
@@ -384,6 +387,12 @@ struct zd_meta_dir {
     size_t d_cnt;
     size_t count;
 };
+
+#ifndef MATCH_EXTENSION
+#define MATCH_EXTENSION(name, extension)  \
+    (strlen(name) >= strlen(extension) && \
+    strcmp(name + strlen(name) - strlen(extension), extension) == 0)
+#endif /* MATCH_EXTENSION */
 
 ZD_DEF char *zd_fs_getname(const char *pathname);
 ZD_DEF bool zd_fs_pwd(char *buf, size_t buf_size);
@@ -451,6 +460,8 @@ struct zd_cmd {
 struct zd_builder {
     struct zd_dyna cmds;    /* each element is struct zd_cmd */
     size_t count;
+    char *bd_src;
+    char *bd_exe;
 #if defined(__linux__)
     int *cmds_status;
     size_t cmds_exec_count;
@@ -473,21 +484,28 @@ ZD_DEF void zd_cmd_destroy(struct zd_cmd *cmd);
   #endif /* ZD_IMPLEMENTATION */
 #endif /* zd_cmd_append_arg */
 
-#define BUILD_SRC "build.c"
-#define BUILD_EXE "build"
+static void _build_append_cmd(struct zd_builder *builder, ...);
+static void _build_self(struct zd_builder *builder, ...);
 
-static void _make_append_cmd(struct zd_builder *builder, ...);
 ZD_DEF void zd_build_init(struct zd_builder *builder);
-ZD_DEF void zd_build_self(struct zd_builder *builder);
 ZD_DEF void zd_build_destroy(struct zd_builder *builder);
 ZD_DEF void zd_build_print(struct zd_builder *builder);
 ZD_DEF int zd_build_run_sync(struct zd_builder *builder);
 ZD_DEF int zd_build_run_async(struct zd_builder *builder);
 
+#ifndef zd_build_self
+  #ifdef ZD_IMPLEMENTATION
+    #define zd_build_self(builder, ...) \
+        _build_self((builder), __VA_ARGS__, NULL)
+  #else
+    #define zd_build_self(builder, ...)
+  #endif /* ZD_IMPLEMENTATION */
+#endif /* zd_build_self */
+
 #ifndef zd_build_append_cmd
   #ifdef ZD_IMPLEMENTATION
     #define zd_build_append_cmd(builder, ...) \
-        _make_append_cmd((builder), __VA_ARGS__, NULL)
+        _build_append_cmd((builder), __VA_ARGS__, NULL)
   #else
     #define zd_build_append_cmd(builder, ...)
   #endif /* ZD_IMPLEMENTATION */
@@ -607,15 +625,15 @@ ZD_DEF void zd_cmdl_build(struct zd_cmdl *cmdl, int argc, char **argv)
 {
     cmdl->program = argv[0];
     cmdl->count = (size_t) argc;
-    zd_dyna_init(&cmdl->nopts, sizeof(char *));
-    zd_dyna_init(&cmdl->opts,  sizeof(struct zd_cmdlopt));
+    zd_dyna_init(&cmdl->nopts, sizeof(char *), NULL);
+    zd_dyna_init(&cmdl->opts,  sizeof(struct zd_cmdlopt), zd_cmdlopt_destroy);
 
     for (int i = 1; i < argc; i++) {
         char *arg = argv[i];
 
         if (arg[0] == '-') { /* option */
             struct zd_cmdlopt opt = {0};
-            zd_dyna_init(&opt.vals, sizeof(char *));
+            zd_dyna_init(&opt.vals, sizeof(char *), NULL);
 
             /* add the correspoding option values to opt */
             opt.name = arg;
@@ -674,14 +692,14 @@ ZD_DEF void zd_cmdl_destroy(void *arg)
     struct zd_cmdl *cmdl = (struct zd_cmdl *) arg;
     cmdl->program = NULL;
     cmdl->count = 0;
-    zd_dyna_destroy(&cmdl->nopts, NULL);
-    zd_dyna_destroy(&cmdl->opts,  zd_cmdlopt_destroy);
+    zd_dyna_destroy(&cmdl->nopts);
+    zd_dyna_destroy(&cmdl->opts);
 }
 
 ZD_DEF void zd_cmdlopt_destroy(void *arg)
 {
     struct zd_cmdlopt *opt = (struct zd_cmdlopt *) arg;
-    zd_dyna_destroy(&opt->vals, NULL);
+    zd_dyna_destroy(&opt->vals);
 }
 
 #endif /* ZD_COMMAND_LINE */
@@ -1229,11 +1247,13 @@ ZD_DEF void zd_test_summary(struct zd_testsuite *suite)
 
 #ifdef ZD_DS_DYNAMIC_ARRAY
 
-ZD_DEF void zd_dyna_init(struct zd_dyna *da, size_t size)
+ZD_DEF void zd_dyna_init(struct zd_dyna *da, size_t size,
+        void (*clear_item)(void *))
 {
     da->base = NULL;
     da->count = 0;
     da->capacity = 0;
+    da->clear_item = clear_item;
     da->size = size;
     da->pos = 0;
 }
@@ -1272,13 +1292,12 @@ ZD_DEF void zd_dyna_insert(struct zd_dyna *da, size_t idx, void *elem)
     }
 }
 
-ZD_DEF void zd_dyna_remove(struct zd_dyna *da, size_t idx, 
-        void (*clear_item)(void *))
+ZD_DEF void zd_dyna_remove(struct zd_dyna *da, size_t idx)
 {
     if (da->count > 0 && idx < da->count) {
         void *elem = zd_dyna_get(da, idx);
-        if (clear_item)
-            clear_item(elem);
+        if (da->clear_item)
+            da->clear_item(elem);
         memcpy(zd_dyna_get(da, idx), zd_dyna_get(da, idx + 1),
                 da->size * (da->count - idx - 1));
         da->count--;
@@ -1286,16 +1305,14 @@ ZD_DEF void zd_dyna_remove(struct zd_dyna *da, size_t idx,
 }
 
 /* zd_dyna_set means: { clear_item(da[idx]); da[idx] = elem; } */
-ZD_DEF void *zd_dyna_set(struct zd_dyna *da, size_t idx, void *elem, 
-        void (*clear_item)(void *))
+ZD_DEF void zd_dyna_set(struct zd_dyna *da, size_t idx, void *elem)
 {
     if (idx >= da->count) 
-        return NULL;
+        return;
     void *dest = zd_dyna_get(da, idx);
-    if (clear_item && dest) 
-        clear_item(dest);
+    if (da->clear_item && dest) 
+        da->clear_item(dest);
     memcpy(dest, elem, da->size);
-    return dest;
 }
 
 /* zd_dyna_get means: return da[idx]; */
@@ -1305,17 +1322,18 @@ ZD_DEF void *zd_dyna_get(struct zd_dyna *da, size_t idx)
     return (char *) da->base + da->size * idx;
 }
 
-ZD_DEF void zd_dyna_destroy(struct zd_dyna *da, void (*clear_item)(void *))
+ZD_DEF void zd_dyna_destroy(struct zd_dyna *da)
 {
-    if (clear_item) {
+    if (da->clear_item) {
         for (size_t i = 0; i < da->count; i++) {
             void *item = (char *) da->base + da->size * i;
-            clear_item(item);
+            da->clear_item(item);
         }
     }
     free(da->base);
     da->count = 0;
     da->capacity = 0;
+    da->clear_item = NULL;
     da->size = 0;
     da->pos = 0;
 }
@@ -1354,12 +1372,12 @@ ZD_DEF void zd_string_append(struct zd_string *str, const char *fmt, ...)
         str->capacity = (str->capacity == 0) ? ZD_STRING_INIT_CAP 
                                              : (2 * str->capacity);
         #undef ZD_STRING_INIT_CAP
-        str->buf = realloc(str->buf, str->capacity);
-        assert(str->buf != NULL);
+        str->base = realloc(str->base, str->capacity);
+        assert(str->base != NULL);
     }
-    memcpy(str->buf + str->length, new_str, len);
+    memcpy(str->base + str->length, new_str, len);
     str->length += len;
-    str->buf[str->length] = '\0';
+    str->base[str->length] = '\0';
 
     va_end(args);
 }
@@ -1371,7 +1389,7 @@ ZD_DEF struct zd_string zd_string_sub(struct zd_string *str, size_t src, size_t 
         return res;
 
     char buf[dest-src+1];
-    memcpy(buf, str->buf+src, dest-src);
+    memcpy(buf, str->base+src, dest-src);
     buf[dest-src] = '\0';
     zd_string_append(&res, buf);
 
@@ -1381,8 +1399,8 @@ ZD_DEF struct zd_string zd_string_sub(struct zd_string *str, size_t src, size_t 
 ZD_DEF void zd_string_destroy(void *arg)
 {
     struct zd_string *str = (struct zd_string *) arg;
-    if (str->buf != NULL) free(str->buf);
-    str->buf = NULL;
+    if (str->base != NULL) free(str->base);
+    str->base = NULL;
     str->length = 0;
     str->capacity = 0;
 }
@@ -1419,14 +1437,16 @@ ZD_DEF void zd_dynb_destroy(void *arg)
 
 #ifdef ZD_DS_STACK
 
-ZD_DEF void zd_stack_init(struct zd_stack *stk, size_t size)
+ZD_DEF void zd_stack_init(struct zd_stack *stk, size_t size,
+        void (*clear_item)(void *))
 {
     stk->base = NULL;
     stk->top = -1;
     stk->capacity = 0;
+    stk->clear_item = clear_item;
     stk->size = size;
     if (size != 0)
-        zd_dyna_init(&stk->gc, size);
+        zd_dyna_init(&stk->gc, size, clear_item);
 }
 
 ZD_DEF void zd_stack_push(struct zd_stack *stk, void *elem)
@@ -1459,19 +1479,20 @@ ZD_DEF void *zd_stack_top(struct zd_stack *stk)
     return (char *) stk->base + stk->size * stk->top;
 }
 
-ZD_DEF void zd_stack_destroy(struct zd_stack *stk, void (*clear_item)(void *))
+ZD_DEF void zd_stack_destroy(struct zd_stack *stk)
 {
-    if (clear_item) {
+    if (stk->clear_item) {
         for (int i = 0; i <= stk->top; i++) {
             void *item = (char *) stk->base + stk->size * i;
-            clear_item(item);
+            stk->clear_item(item);
         }
     }
-    zd_dyna_destroy(&stk->gc, clear_item);
+    zd_dyna_destroy(&stk->gc);
 
     free(stk->base);
     stk->top = -1;
     stk->capacity = 0;
+    stk->clear_item = NULL;
     stk->size = 0;
 }
 
@@ -1611,7 +1632,7 @@ ZD_DEF void zd_trie_insert(struct zd_trie_node *root, const char *word)
 ZD_DEF int zd_trie_search(struct zd_trie_node *root, const char *word)
 {
     if (!root) 
-        return false;
+        return 0;
 
     struct zd_trie_node *cur = root;
 
@@ -1659,24 +1680,26 @@ static void *zd_queue_create_node(void *elem, size_t size)
     return np;
 }
 
-ZD_DEF void zd_queue_init(struct zd_queue *qp, size_t size)
+ZD_DEF void zd_queue_init(struct zd_queue *qp, size_t size,
+        void (*clear_item)(void *))
 {
     qp->head = (struct zd_queue_node) {0};
     qp->front = NULL;
     qp->rear  = NULL;
     qp->count = 0;
     qp->size  = size;
+    qp->clear_item = clear_item;
     if (size != 0)
-        zd_dyna_init(&qp->gc, sizeof(void *));
+        zd_dyna_init(&qp->gc, sizeof(void *), NULL);
 }
 
-ZD_DEF void zd_queue_destroy(struct zd_queue *qp, void (*clear_item)(void *))
+ZD_DEF void zd_queue_destroy(struct zd_queue *qp)
 {
     struct zd_queue_node *np = qp->head.next, *tmp = NULL;
     while (np) {
         tmp = np->next;
-        if (clear_item) 
-            clear_item(np->data);
+        if (qp->clear_item) 
+            qp->clear_item(np->data);
         free(np->data);
         free(np);
         np = tmp;
@@ -1684,13 +1707,13 @@ ZD_DEF void zd_queue_destroy(struct zd_queue *qp, void (*clear_item)(void *))
 
     void **gc_item;
     while ((gc_item = zd_dyna_next(&qp->gc)) != NULL) {
-        if (clear_item)
-            clear_item(*gc_item);
+        if (qp->clear_item)
+            qp->clear_item(*gc_item);
         free(*gc_item);
     }
-    zd_dyna_destroy(&qp->gc, NULL);
+    zd_dyna_destroy(&qp->gc);
 
-    zd_queue_init(qp, 0);
+    zd_queue_init(qp, 0, NULL);
 }
 
 ZD_DEF void zd_queue_push(struct zd_queue *qp, void *elem)
@@ -1982,22 +2005,22 @@ ZD_DEF void zd_cmd_print(struct zd_cmd *cmd)
 
     struct zd_string *arg_iter = NULL;
     while ((arg_iter = zd_dyna_next(&cmd->args)) != NULL)
-        zd_string_append(&cmd_string, " %s", arg_iter->buf);
+        zd_string_append(&cmd_string, " %s", arg_iter->base);
 
-    zd_log(LOG_INFO, cmd_string.buf);
+    zd_log(LOG_INFO, cmd_string.base);
 
     zd_string_destroy(&cmd_string);
 }
 
 ZD_DEF void zd_cmd_init(struct zd_cmd *cmd)
 {
-    zd_dyna_init(&cmd->args, sizeof(struct zd_string));
+    zd_dyna_init(&cmd->args, sizeof(struct zd_string), zd_string_destroy);
     cmd->count = 0;
 }
 
 ZD_DEF void zd_cmd_destroy(struct zd_cmd *cmd)
 {
-    zd_dyna_destroy(&cmd->args, zd_string_destroy);
+    zd_dyna_destroy(&cmd->args);
     cmd->count = 0;
 }
 
@@ -2006,7 +2029,7 @@ ZD_DEF int zd_cmd_run(struct zd_cmd *cmd)
     struct zd_string cmd_string = {0};
 
     for (size_t i = 0; i < cmd->count; i++) {
-        char *arg = ((struct zd_string *) zd_dyna_get(&cmd->args, i))->buf;
+        char *arg = ((struct zd_string *) zd_dyna_get(&cmd->args, i))->base;
         zd_string_append(&cmd_string, " %s", arg);
     }
 #if defined(_WIN32)
@@ -2014,39 +2037,49 @@ ZD_DEF int zd_cmd_run(struct zd_cmd *cmd)
 #endif /* platform */
     zd_string_append(&cmd_string, " ");
 
-    int status = system(cmd_string.buf);
+    int status = system(cmd_string.base);
 
     if (status != 0) {
-        zd_log(LOG_ERROR, "run failed [%s]", cmd_string.buf);
+        zd_log(LOG_ERROR, "run failed [%s]", cmd_string.base);
         zd_string_destroy(&cmd_string);
         return 1;
     }
-    zd_log(LOG_GOOD, "run successfully [%s]", cmd_string.buf);
+    zd_log(LOG_GOOD, "run successfully [%s]", cmd_string.base);
 
     zd_string_destroy(&cmd_string);
     return 0;
 }
 
-ZD_DEF void zd_build_self(struct zd_builder *builder)
+static void _build_self(struct zd_builder *builder, ...)
 {
     struct zd_cmd cmd = {0};
     zd_cmd_init(&cmd);
 
-    zd_cmd_append_arg(&cmd, "cc", "-o", BUILD_EXE, BUILD_SRC);
-    zd_build_append_cmd(builder, &cmd);
+    zd_cmd_append_arg(&cmd, "gcc", "-o", builder->bd_exe, builder->bd_src);
+
+    va_list ap;
+    va_start(ap, builder);
+    char *arg = NULL;
+    while ((arg = va_arg(ap, char *)) != NULL)
+        zd_cmd_append_arg(&cmd, arg);
+    va_end(ap);
+
+    zd_dyna_insert(&builder->cmds, 0, &cmd);
 }
 
 ZD_DEF void zd_build_init(struct zd_builder *builder)
 {
-    zd_dyna_init(&builder->cmds, sizeof(struct zd_cmd));
+    zd_dyna_init(&builder->cmds, sizeof(struct zd_cmd), NULL);
     builder->count = 0;
+    builder->bd_src = "build.c";
+    builder->bd_src = "build";
 #if defined(__linux__)
     builder->cmds_status = NULL;
     builder->cmds_exec_count = 0;
 #endif
 }
 
-static void _make_append_cmd(struct zd_builder *builder, ...)
+static void _build_append_cmd(struct zd_builder *builder, ...)
 {
     va_list ap;
     va_start(ap, builder);
@@ -2068,9 +2101,9 @@ ZD_DEF void zd_build_print(struct zd_builder *builder)
 
         struct zd_string *arg_iter = NULL;
         while ((arg_iter = zd_dyna_next(&cmd_iter->args)) != NULL)
-            zd_string_append(&cmd_string, " %s", arg_iter->buf);
+            zd_string_append(&cmd_string, " %s", arg_iter->base);
 
-        zd_log(LOG_INFO, cmd_string.buf);
+        zd_log(LOG_INFO, cmd_string.base);
 
         zd_string_destroy(&cmd_string);
     }
@@ -2080,11 +2113,14 @@ ZD_DEF void zd_build_destroy(struct zd_builder *builder)
 {
     struct zd_cmd *cmd_iter = NULL;
     while ((cmd_iter = zd_dyna_next(&builder->cmds)) != NULL)
-        zd_dyna_destroy(&cmd_iter->args, zd_string_destroy);
+        zd_cmd_destroy(cmd_iter);
 
-    zd_dyna_destroy(&builder->cmds, NULL);
+    zd_dyna_destroy(&builder->cmds);
 
     builder->count = 0;
+    builder->bd_src = NULL;
+    builder->bd_exe = NULL;
+
 #if defined(__linux__)
     builder->cmds_exec_count = 0;
     if (builder->cmds_status != NULL) {
@@ -2241,13 +2277,25 @@ static void __attribute__((naked)) zd_coctx_swap(struct zd_coctx *cur,
     );
 }
 
+static inline void clear_coroutine(void *arg)
+{
+    struct zd_coctx *co = (struct zd_coctx *) arg;
+    memset(co->regs, 0, sizeof(co->regs));
+    if (co->stack_base != NULL)
+        free(co->stack_base);
+    co->stack_base = NULL;
+    co->stack_size = 0;
+    co->status = -1;
+    co->id = -1;
+}
+
 ZD_DEF struct zd_colib *zd_colib_init(void)
 {
     struct zd_colib *colib = malloc(sizeof(struct zd_colib));
     assert(colib != NULL);
 
-    zd_dyna_init(&colib->coctxs, sizeof(struct zd_coctx));
-    zd_stack_init(&colib->back_stk, sizeof(struct zd_coctx *));
+    zd_dyna_init(&colib->coctxs, sizeof(struct zd_coctx), clear_coroutine);
+    zd_stack_init(&colib->back_stk, sizeof(struct zd_coctx *), NULL);
 
     /* main coroutine */
     struct zd_coctx co = {0};
@@ -2261,23 +2309,11 @@ ZD_DEF struct zd_colib *zd_colib_init(void)
     return colib;
 }
 
-static inline void clear_coroutine(void *arg)
-{
-    struct zd_coctx *co = (struct zd_coctx *) arg;
-    memset(co->regs, 0, sizeof(co->regs));
-    if (co->stack_base != NULL)
-        free(co->stack_base);
-    co->stack_base = NULL;
-    co->stack_size = 0;
-    co->status = -1;
-    co->id = -1;
-}
-
 ZD_DEF void zd_colib_destroy(struct zd_colib *colib)
 {
     colib->cur_coctx = NULL;
-    zd_stack_destroy(&colib->back_stk, NULL);
-    zd_dyna_destroy(&colib->coctxs, clear_coroutine);
+    zd_stack_destroy(&colib->back_stk);
+    zd_dyna_destroy(&colib->coctxs);
     free(colib);
 }
 
@@ -2353,7 +2389,7 @@ ZD_DEF void zd_coctx_collect(struct zd_colib *colib, struct zd_coctx *co)
     size_t off = co - (struct zd_coctx *) colib->coctxs.base;
     if (off >= colib->coctxs.count)
         return;
-    zd_dyna_remove(&colib->coctxs, off, clear_coroutine);
+    zd_dyna_remove(&colib->coctxs, off);
 }
 
 ZD_DEF size_t zd_coctx_alive(struct zd_colib *colib)
@@ -2399,7 +2435,7 @@ ZD_DEF void zd_list_append(struct zd_list *list, void *elem)
     struct zd_list_node *node = zd_list_create_node(elem, list->size);
     struct zd_list_node *prev = &list->head, *cur = list->head.next;
 
-    for (size_t i = 0; i < list->coiunt; i++) {
+    for (size_t i = 0; i < list->count; i++) {
         prev = cur;
         cur = cur->next;
     }
@@ -2410,7 +2446,7 @@ ZD_DEF void zd_list_append(struct zd_list *list, void *elem)
     list->count++;
 }
 
-ZD_DEF void zd_list_insert(struct zd_list *list, void *elem, size_t idx)
+ZD_DEF void zd_list_insert(struct zd_list *list, size_t idx, void *elem)
 {
     struct zd_list_node *node = zd_list_create_node(elem, list->size);
     struct zd_list_node *prev = &list->head, *cur = list->head.next;
@@ -2429,8 +2465,7 @@ ZD_DEF void zd_list_insert(struct zd_list *list, void *elem, size_t idx)
     list->count++;
 }
 
-ZD_DEF void zd_list_remove(struct zd_list *list, size_t idx,
-        void (*clear_item)(void *))
+ZD_DEF void zd_list_remove(struct zd_list *list, size_t idx)
 {
     if (idx >= list->count)
         return;
@@ -2444,12 +2479,12 @@ ZD_DEF void zd_list_remove(struct zd_list *list, size_t idx,
 
     prev->next = cur->next;
 
-    if (clear_item)
-        clear_item(cur->data);
+    if (list->clear_item)
+        list->clear_item(cur->data);
     free(cur->data);
-    free(cur);
     cur->data = NULL;
     cur->next = NULL;
+    free(cur);
 
     list->count--;
 }
@@ -2464,14 +2499,13 @@ ZD_DEF void *zd_list_get(struct zd_list *list, size_t idx)
     for (size_t i = 0; i < idx; i++)
         cur = cur->next;
 
-    return cur;
+    return cur->data;
 }
 
-ZD_DEF void zd_list_set(struct zd_list *list, size_t idx,
-        void *elem, void (*clear_item)(void *))
+ZD_DEF void zd_list_set(struct zd_list *list, size_t idx, void *elem)
 {
     if (idx >= list->count)
-        return NULL;
+        return;
 
     struct zd_list_node *cur = list->head.next, *prev = &list->head;
 
@@ -2484,8 +2518,8 @@ ZD_DEF void zd_list_set(struct zd_list *list, size_t idx,
     prev->next = node;
     node->next = cur->next;
 
-    if (clear_item)
-        clear_item(cur->data);
+    if (list->clear_item)
+        list->clear_item(cur->data);
     free(cur->data);
     cur->data = NULL;
     cur->next = NULL;
@@ -2505,23 +2539,25 @@ ZD_DEF void zd_list_reverse(struct zd_list *list)
     list->head.next = prev;
 }
 
-ZD_DEF void zd_list_init(struct zd_list *list, size_t size)
+ZD_DEF void zd_list_init(struct zd_list *list, size_t size,
+        void (*clear_item)(void *))
 {
-    list->head = {
-        .data = NULL;
-        .next = NULL;
+    list->head = (struct zd_list_node) {
+        .data = NULL,
+        .next = NULL
     };
     list->count = 0;
     list->size = size;
+    list->clear_item = clear_item;
 }
 
-ZD_DEF void zd_list_destroy(struct zd_list *list, void (*clear_item)(void *))
+ZD_DEF void zd_list_destroy(struct zd_list *list)
 {
     struct zd_list_node *cur = list->head.next, *next = NULL;
     while (cur) {
         next = cur->next;
-        if (clear_item)
-            clear_item(cur->data);
+        if (list->clear_item)
+            list->clear_item(cur->data);
         free(cur->data);
         cur->data = NULL;
         cur->next = NULL;
@@ -2529,9 +2565,10 @@ ZD_DEF void zd_list_destroy(struct zd_list *list, void (*clear_item)(void *))
         cur = next;
     }
 
-    list->head = {0};
+    list->head = (struct zd_list_node) {0};
     list->count = 0;
     list->size = 0;
+    list->clear_item = NULL;
 }
 
 #endif /* ZD_DS_LINKED_LIST */
@@ -2613,15 +2650,12 @@ ZD_DEF void zd_htbl_resize(struct zd_hash_tbl *htbl, int mode)
 
 ZD_DEF void zd_htbl_insert(struct zd_hash_tbl *htbl, void *key, void *val)
 {
-    bool is_collision = false;
     size_t idx = htbl->hash_func(key) % htbl->capacity;
-    if (htbl->buckets[idx]->next)
-        is_collision = true;
-
-    struct zd_hash_node *node = zd_htbl_create_node(htbl, key, val);
     struct zd_hash_node *cur = htbl->buckets[idx];
     while (cur && cur->next)
         cur = cur->next;
+
+    struct zd_hash_node *node = zd_htbl_create_node(htbl, key, val);
 
     cur->next = node;
     htbl->count++;

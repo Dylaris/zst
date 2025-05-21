@@ -13,8 +13,8 @@ int main(void)
     struct zd_string xyp = {0};
     zd_string_append(&xyp, "FUCK !!! XYP !!!");
 
-    zd_log(LOG_GOOD,  greet.buf);
-    zd_log(LOG_ERROR, xyp.buf);
+    zd_log(LOG_GOOD,  greet.base);
+    zd_log(LOG_ERROR, xyp.base);
 
     zd_string_destroy(&greet);
     zd_string_destroy(&xyp);

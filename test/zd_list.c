@@ -17,7 +17,7 @@ char *test1(void)
     /* int */
 
     struct zd_list list = {0};
-    zd_list_init(&list, sizeof(int));
+    zd_list_init(&list, sizeof(int), NULL);
 
     int elem;
     elem = 5; zd_list_append(&list, &elem);
@@ -33,22 +33,21 @@ char *test1(void)
     zd_assert(*zd_type_cast(zd_list_get(&list, 4), (int *)) == 3,    NULL);
     zd_assert( zd_type_cast(zd_list_get(&list, 5), (int *)) == NULL, NULL);
 
-    int *ptr;
-    elem = 1; ptr = zd_list_set(&list, 3, &elem, NULL); 
-    zd_assert(*ptr == 1 && *zd_type_cast(zd_list_get(&list, 3), (int *)) == 1, NULL);
-    elem = 100; ptr = zd_list_set(&list, 0, &elem, NULL); 
-    zd_assert(*ptr == 100 && *zd_type_cast(zd_list_get(&list, 0), (int *)) == 100, NULL);
-    elem = -100; ptr = zd_list_set(&list, 10, &elem, NULL); 
-    zd_assert(ptr == NULL, NULL);
+    elem = 1; zd_list_set(&list, 3, &elem); 
+    zd_assert(*zd_type_cast(zd_list_get(&list, 3), (int *)) == 1, NULL);
+    elem = 100; zd_list_set(&list, 0, &elem); 
+    zd_assert(*zd_type_cast(zd_list_get(&list, 0), (int *)) == 100, NULL);
+    elem = -100; zd_list_set(&list, 10, &elem); 
+    zd_assert(zd_type_cast(zd_list_get(&list, 10), (int *)) == NULL, NULL);
 
-    zd_list_remove(&list, 0, NULL); zd_assert(list.count == 4, NULL);
-    zd_list_remove(&list, 3, NULL); zd_assert(list.count == 3, NULL);
-    zd_list_remove(&list, 3, NULL); zd_assert(list.count == 3, NULL);
+    zd_list_remove(&list, 0); zd_assert(list.count == 4, NULL);
+    zd_list_remove(&list, 3); zd_assert(list.count == 3, NULL);
+    zd_list_remove(&list, 3); zd_assert(list.count == 3, NULL);
 
     elem = 101; zd_list_insert(&list, 3, &elem); zd_assert(list.count == 4, NULL);
     elem = 102; zd_list_insert(&list, 0, &elem); zd_assert(list.count == 5, NULL);
 
-    zd_list_destroy(&list, NULL);
+    zd_list_destroy(&list);
 
     return "test int done!";
 }
@@ -59,7 +58,7 @@ char *test2(void)
 
     struct zd_list list = {0};
 
-    zd_list_init(&list, sizeof(struct type));
+    zd_list_init(&list, sizeof(struct type), clear_item);
 
     struct type elem = {0};
     elem.mem = malloc(1); elem.a = 5; zd_list_append(&list, &elem);
@@ -75,22 +74,21 @@ char *test2(void)
     zd_assert(zd_type_cast(zd_list_get(&list, 4), (struct type *))->a == 3,    NULL);
     zd_assert(zd_type_cast(zd_list_get(&list, 5), (struct type *))    == NULL, NULL);
 
-    struct type *ptr;
-    elem = (struct type) {NULL, 1}; ptr = zd_list_set(&list, 3, &elem, clear_item); 
-    zd_assert(ptr->mem == NULL && ptr->a == 1 && zd_type_cast(zd_list_get(&list, 3), (struct type *))->a == 1, NULL);
-    elem = (struct type) {NULL, 100}; ptr = zd_list_set(&list, 0, &elem, clear_item); 
-    zd_assert(ptr->mem == NULL && ptr->a == 100 && zd_type_cast(zd_list_get(&list, 0), (struct type *))->a == 100, NULL);
-    elem = (struct type) {NULL, -100}; ptr = zd_list_set(&list, 10, &elem, clear_item); 
-    zd_assert(ptr == NULL && zd_type_cast(zd_list_get(&list, 10), (struct type *)) == NULL, NULL);
+    elem = (struct type) {NULL, 1}; zd_list_set(&list, 3, &elem); 
+    zd_assert(zd_type_cast(zd_list_get(&list, 3), (struct type *))->a == 1, NULL);
+    elem = (struct type) {NULL, 100}; zd_list_set(&list, 0, &elem); 
+    zd_assert(zd_type_cast(zd_list_get(&list, 0), (struct type *))->a == 100, NULL);
+    elem = (struct type) {NULL, -100}; zd_list_set(&list, 10, &elem); 
+    zd_assert(zd_type_cast(zd_list_get(&list, 10), (struct type *)) == NULL, NULL);
 
-    zd_list_remove(&list, 0, clear_item); zd_assert(list.count == 4, NULL);
-    zd_list_remove(&list, 3, clear_item); zd_assert(list.count == 3, NULL);
-    zd_list_remove(&list, 3, clear_item); zd_assert(list.count == 3, NULL);
+    zd_list_remove(&list, 0); zd_assert(list.count == 4, NULL);
+    zd_list_remove(&list, 3); zd_assert(list.count == 3, NULL);
+    zd_list_remove(&list, 3); zd_assert(list.count == 3, NULL);
 
     elem.mem = malloc(2); elem.a = 101; zd_list_insert(&list, 3, &elem); zd_assert(list.count == 4, NULL);
     elem.mem = malloc(2); elem.a = 102; zd_list_insert(&list, 0, &elem); zd_assert(list.count == 5, NULL);
 
-    zd_list_destroy(&list, clear_item);
+    zd_list_destroy(&list);
 
     return "test struct done!";
 }

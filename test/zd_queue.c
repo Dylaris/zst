@@ -6,7 +6,7 @@
 char *test1(void)
 {
     struct zd_queue queue = {0};
-    zd_queue_init(&queue, sizeof(int));
+    zd_queue_init(&queue, sizeof(int), NULL);
     zd_assert(queue.count == 0, NULL);
     zd_assert(queue.size == sizeof(int), NULL);
 
@@ -36,7 +36,7 @@ char *test1(void)
     zd_assert(*zd_type_cast(zd_queue_front(&queue), (int *)) == 1, NULL); zd_assert(queue.count == 3, NULL);
     zd_assert(*zd_type_cast(zd_queue_rear(&queue), (int *))  == 3, NULL); zd_assert(queue.count == 3, NULL);
 
-    zd_queue_destroy(&queue, NULL);
+    zd_queue_destroy(&queue);
 
     return "test int";
 }
@@ -53,7 +53,7 @@ static void clear_item(void *item)
 char *test2(void)
 {
     struct zd_queue queue = {0};
-    zd_queue_init(&queue, sizeof(struct type));
+    zd_queue_init(&queue, sizeof(struct type), clear_item);
     zd_assert(queue.count == 0, NULL);
     zd_assert(queue.size == sizeof(struct type), NULL);
 
@@ -88,7 +88,7 @@ char *test2(void)
     zd_assert(zd_type_cast(zd_queue_front(&queue), (struct type *))->a == 100, NULL); zd_assert(queue.count == 3, NULL);
     zd_assert(zd_type_cast(zd_queue_rear(&queue),  (struct type *))->a == 102, NULL); zd_assert(queue.count == 3, NULL);
 
-    zd_queue_destroy(&queue, clear_item);
+    zd_queue_destroy(&queue);
 
     return "test struct";
 }

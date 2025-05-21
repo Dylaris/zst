@@ -16,7 +16,7 @@ static void clear_item(void *arg)
 int main(void)
 {
     struct zd_stack fruits = {0};
-    zd_stack_init(&fruits, sizeof(struct fruit));
+    zd_stack_init(&fruits, sizeof(struct fruit), clear_item);
 
     struct fruit apple  = { .name = "apple",  .price = 2 };
     struct fruit orange = { .name = "orange", .price = 1 };
@@ -40,7 +40,7 @@ int main(void)
     item = zd_stack_top(&fruits);
     printf("stack top after pop: [%s] ($ %zu)\n", item->name, item->price);
 
-    zd_stack_destroy(&fruits, clear_item);
+    zd_stack_destroy(&fruits);
 
     return 0;
 }

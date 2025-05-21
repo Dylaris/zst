@@ -9,7 +9,7 @@ static bool key_cmp(void *k1, void *k2)
     struct zd_string *s1 = k1;
     struct zd_string *s2 = k2;
 
-    if (strcmp(s1->buf, s2->buf) == 0)
+    if (strcmp(s1->base, s2->base) == 0)
         return true;
     else
         return false;
@@ -18,7 +18,7 @@ static bool key_cmp(void *k1, void *k2)
 static size_t hash_func(void *key)
 {
     struct zd_string *str = key;
-    return STRING_HASH(str->buf);
+    return STRING_HASH(str->base);
 }
 
 char *test1(void)

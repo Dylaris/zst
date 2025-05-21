@@ -16,7 +16,7 @@ static void clear_item(void *arg)
 int main(void)
 {
     struct zd_queue fruits = {0};
-    zd_queue_init(&fruits, sizeof(struct fruit));
+    zd_queue_init(&fruits, sizeof(struct fruit), clear_item);
 
     struct fruit apple  = { .name = "apple",  .price = 2 };
     struct fruit orange = { .name = "orange", .price = 1 };
@@ -32,7 +32,7 @@ int main(void)
     while ((iter = zd_queue_pop(&fruits)) != NULL)
         printf("[%s] ($ %zu)\n", iter->name, iter->price);
 
-    zd_queue_destroy(&fruits, clear_item);
+    zd_queue_destroy(&fruits);
 
     return 0;
 }

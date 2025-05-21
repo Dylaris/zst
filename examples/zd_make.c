@@ -1,64 +1,64 @@
 #define ZD_IMPLEMENTATION
 #define ZD_BUILD
+#define ZD_FS
 #include "zd.h"
 
-void build_std(void)
+void compile(void)
 {
     struct zd_builder builder = {0};
     zd_build_init(&builder);
 
-    const char *std_csrc[] = {
-        "xyp.c", "zd_cmdl.c", "zd_dyna.c", "zd_dynb.c", "zd_log.c",
-        "zd_queue.c", "zd_stack.c", "zd_string.c", "zd_test.c"
-    };
-    const char *std_cexe[] = {
-        "xyp", "zd_cmdl", "zd_dyna", "zd_dynb", "zd_log",
-        "zd_queue", "zd_stack", "zd_string", "zd_test"
-    };
+    struct zd_meta_dir md = {0};
+    zd_fs_loadd(".", &md);
 
-    for (size_t i = 0; i < sizeof(std_csrc) / sizeof(std_csrc[0]); i++) {
+    for (size_t i = 0; i < md.f_cnt; i++) {
+        struct zd_string src = {0}, exe = {0};
+        if (!MATCH_EXTENSION(md.files[i], ".c"))
+            continue;
+
+        zd_string_append(&src, md.files[i]);
+        exe = zd_string_sub(&src, 0, strlen(md.files[i]) - 2);
+
         struct zd_cmd cmd = {0};
         zd_cmd_init(&cmd);
-        zd_cmd_append_arg(&cmd, "gcc", "-Wall", "-Wextra", "-I", "../",
-                "-std=c11", "-o", std_cexe[i], std_csrc[i]);
+        zd_cmd_append_arg(&cmd, "gcc");
+        zd_cmd_append_arg(&cmd, "-Wall", "-Wextra");
+        zd_cmd_append_arg(&cmd, "-I", "../");
+        zd_cmd_append_arg(&cmd, "-o", exe.base, src.base);
+        zd_cmd_append_arg(&cmd, "-lm");
         zd_build_append_cmd(&builder, &cmd);
+
+        zd_string_destroy(&src);
+        zd_string_destroy(&exe);
     }
+    builder.bd_src = "zd_make.c";
+    builder.bd_exe = "zd_make";
+    zd_build_self(&builder, "-I", "../");
 
     zd_build_run_sync(&builder);
 
+    zd_fs_destroy_md(&md);
     zd_build_destroy(&builder);
 }
 
-void build_special(void)
+void clean(void)
 {
-    struct zd_builder builder = {0};
-    zd_build_init(&builder);
-    struct zd_cmd cmd1 = {0}, cmd2 = {0};
-    zd_cmd_init(&cmd1);
-    zd_cmd_init(&cmd2);
+    struct zd_meta_dir md = {0};
+    zd_fs_loadd(".", &md);
 
-    zd_cmd_append_arg(&cmd1, "gcc", "-Wall", "-Wextra", "-I", "../",
-            "-o", "zd_dynasm", "zd_dynasm.c");
-    zd_cmd_append_arg(&cmd2, "gcc", "-Wall", "-Wextra", "-I", "../",
-            "-o", "zd_print", "zd_print.c", "-lm");
+    for (size_t i = 0; i < md.f_cnt; i++) {
+        if (!MATCH_EXTENSION(md.files[i], ".c"))
+            continue;
 
-    zd_build_append_cmd(&builder, &cmd1, &cmd2);
+        struct zd_string src = {0}, exe = {0};
+        zd_string_append(&src, md.files[i]);
+        exe = zd_string_sub(&src, 0, strlen(md.files[i]) - 2);
 
-    zd_build_run_sync(&builder);
+        zd_fs_remove(exe.base);
 
-    zd_build_destroy(&builder);
-}
-
-void clear(void)
-{
-    const char *clear_files[] = {
-        "xyp", "zd_cmdl", "zd_dyna", "zd_dynb", "zd_log",
-        "zd_queue", "zd_stack", "zd_string", "zd_test", 
-        "zd_dynasm", "zd_print"
-    };
-
-    for (int i = 0; i < sizeof(clear_files) / sizeof(clear_files[0]); i++)
-        remove(clear_files[i]);
+        zd_string_destroy(&src);
+        zd_string_destroy(&exe);
+    }
 }
 
 int main(int argc, char **argv)
@@ -75,12 +75,10 @@ int main(int argc, char **argv)
     bool is_clear = zd_cmdl_isuse(&cmdl, "-clean");
     bool is_compile = zd_cmdl_isuse(&cmdl, "-compile");
 
-    if (is_compile) {
-        build_std();
-        build_special();
-    } else if (is_clear) {
-        clear();
-    }
+    if (is_compile)
+        compile();
+    else if (is_clear)
+        clean();
 
     zd_cmdl_destroy(&cmdl);
 

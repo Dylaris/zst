@@ -38,4 +38,6 @@ Therefore, we use `char **` as the element type for the data structure, which po
 
 Since what we actually intend to push into the data structure is `char **`, we need to pass `char ***`.
 
-If you find this approach cumbersome, you can simply utilize the implemented `struct zd_string`.
+If you find this approach too complex, you can treat `struct zd_string` as just a wrapper around `char *`. 
+
+You don't have to use the full `struct zd_string` API; you can use it just like a `char *` without any difference.

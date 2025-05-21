@@ -17,7 +17,7 @@ char *test_int(void)
     /* int */ 
 
     struct zd_stack stk = {0};
-    zd_stack_init(&stk, sizeof(int));
+    zd_stack_init(&stk, sizeof(int), NULL);
 
     int elem;
     elem = 5; zd_stack_push(&stk, &elem);
@@ -47,7 +47,7 @@ char *test_int(void)
 
     zd_assert(*zd_type_cast(zd_stack_top(&stk), (int *)) == 3, NULL);
 
-    zd_stack_destroy(&stk, NULL);
+    zd_stack_destroy(&stk);
 
     return "zd_stack test_int done!";
 }
@@ -57,7 +57,7 @@ char *test_struct(void)
     /* struct */
 
     struct zd_stack stk = {0};
-    zd_stack_init(&stk, sizeof(struct type));
+    zd_stack_init(&stk, sizeof(struct type), clear_item);
 
     struct type elem = {0};
     elem.mem = malloc(1); elem.a = 5; zd_stack_push(&stk, &elem);
@@ -85,7 +85,7 @@ char *test_struct(void)
 
     zd_assert(zd_type_cast(zd_stack_top(&stk), (struct type *))->a == 3, NULL);
 
-    zd_stack_destroy(&stk, clear_item);
+    zd_stack_destroy(&stk);
 
     return "zd_stack test_struct done!";
 }

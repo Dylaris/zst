@@ -12,35 +12,33 @@
  * Here’s an example, and how the layers are organized.
  *
  * struct zd_cmdlopt {
- *     char *name; 
- *     struct zd_dyna vals;    // each element is string
+ *     struct zd_string name;
+ *     struct zd_dyna vals;    // each element is 'struct zd_string'
  * };
  * 
  * struct zd_cmdl {
- *     char *program;
- *     size_t count;
- *     struct zd_dyna nopts;   // each element is string 
- *     struct zd_dyna opts;    // each element is zd_cmdlopt
+ *     struct zd_string program;
+ *     struct zd_dyna defines; // each element is 'struct zd_cmdlopt'
+ *     struct zd_dyna nopts;   // each element is 'struct zd_string'
+ *     struct zd_dyna opts;    // each element is 'struct zd_cmdlopt'
  * };
  * 
- * !!! EXAMPLE !!!: ./zd_cmdl nothing here -Wall -Wextra -std c11 -I ../src/ -o null null.c -L ../lib/ -l nil
+ * !!! EXAMPLE !!!: ./zd_cmdl nothing here -Wall -Wextra -std=c11 -I ../src/ -o null null.c -L ../lib/ -l nil
  *
  * cmdl 
- * + program                    (char *)
+ * + program                    ('struct zd_string')
  *     + ./zd_cmdl
- * + count                      (size_t)
- *     + 16
- * + nopts                      (zd_dyna, each item is char * type)
- *     + nopts[0]               (char *)
+ * + nopts                      ('struct zd_dyna', each item is 'struct zd_string' type)
+ *     + nopts[0]               ('struct zd_string')
  *         + nothing
  *     + nopts[1]
  *         + here
  *     + nopts[2]
  *         + NULL
- * + opts                       (zd_dyna, each item is zd_cmdlopt type)
- *     + opts[0]                (zd_dyna)
- *         + name: -Wall        (char *)
- *         + vals: NULL         (zd_dyna, each item is char * type)
+ * + opts                       ('struct zd_dyna', each item is 'struct zd_cmdlopt' type)
+ *     + opts[0]                ('struct zd_cmdlopt')
+ *         + name: -Wall        ('struct zd_string')
+ *         + vals: NULL         ('struct zd_dyna', each item is 'struct zd_string' type)
  *     + opts[1]
  *         + name: -Wextra
  *         + vals: NULL
@@ -75,40 +73,30 @@
  * 
  */
 
-/* ./zd_cmdl nothing here -Wall -Wextra -std c11 -I ../src/ -o null null.c -L ../lib/ -l nil */
-
-static const char *usage[][2] = {
-    { "-I", "header file" },
-    { "-Wall", "" },
-    { "-Wextra", "" },
-    { "-std", "C standard" },
-    { "-o", "output file" },
-    { "-L", "lib directory" },
-    { "-l", "lib name" },
-};
+/* ./zd_cmdl nothing here -Wall -Wextra -std=c11 -I ../src/ -o null null.c -L ../lib/ -l nil */
 
 int main(int argc, char **argv)
 {
     struct zd_cmdl cmdl = {0};
-    zd_cmdl_build(&cmdl, argc, argv);
+    zd_cmdl_init(&cmdl);
 
-    zd_cmdl_usage(&cmdl, usage, sizeof(usage) / sizeof(usage[0]));
+    zd_cmdl_build(&cmdl, argc, argv);
 
     /* get the non-options */
     struct zd_dyna *nopts = &cmdl.nopts;
-    char *nopt_iter;
+    struct zd_string *nopt_iter;
     while ((nopt_iter = zd_dyna_next(nopts)) != NULL) {
-        printf("non-option: %s\n", nopt_iter);
+        printf("non-option: %s\n", nopt_iter->base);
     }
 
     /* get the options (name and values) */
     struct zd_dyna *opts = &cmdl.opts;
     struct zd_cmdlopt *opt_iter;
+    struct zd_string *val_iter;
     while ((opt_iter = zd_dyna_next(opts)) != NULL) {
-        printf("option: %s\n", opt_iter->name);
-        char *val_iter;
+        printf("option: %s\n", opt_iter->name.base);
         while ((val_iter = zd_dyna_next(&opt_iter->vals)) != NULL) {
-            printf("        %s\n", val_iter);
+            printf("        %s\n", val_iter->base);
         }
     }
 

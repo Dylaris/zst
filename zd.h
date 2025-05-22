@@ -60,6 +60,9 @@
   #ifndef ZD_DS_DYNAMIC_ARRAY
     #define ZD_DS_DYNAMIC_ARRAY
   #endif
+  #ifndef ZD_DS_STRING
+    #define ZD_DS_STRING
+  #endif
 #endif
 
 #ifdef ZD_COROUTINE
@@ -197,8 +200,7 @@ struct zd_string {
 };
 
 ZD_DEF void zd_string_append(struct zd_string *str, const char *fmt, ...);
-ZD_DEF struct zd_string zd_string_sub(struct zd_string *str, 
-        size_t src, size_t dest);
+ZD_DEF struct zd_string zd_string_sub(const char *str, size_t src, size_t dest);
 ZD_DEF void zd_string_destroy(void *arg);
 
 #endif /* ZD_DS_STRING */
@@ -410,25 +412,34 @@ ZD_DEF void zd_fs_destroy_md(struct zd_meta_dir *md);
 
 #ifdef ZD_COMMAND_LINE
 
+#define OPT_NOARG 0
+#define OPT_NARGS -1
+
 struct zd_cmdlopt {
-    char *name;
-    struct zd_dyna vals;    /* each element is string */
+    struct zd_string name;
+    struct zd_dyna vals;    /* each element is 'struct zd_string' */
+
+    /* for defined option */
+    struct zd_string description;
 };
 
 struct zd_cmdl {
-    char *program;
-    size_t count;
-    struct zd_dyna nopts;   /* each element is string */
-    struct zd_dyna opts;    /* each element is zd_cmdlopt */
+    struct zd_string program;
+    struct zd_dyna defines;
+    struct zd_dyna nopts;   /* each element is 'struct zd_string' */
+    struct zd_dyna opts;    /* each element is 'struct zd_cmdlopt' */
 };
 
+ZD_DEF void zd_cmdl_init(struct zd_cmdl *cmdl);
+ZD_DEF void zd_cmdl_define(struct zd_cmdl *cmdl, const char *name,
+        const char *description);
 ZD_DEF void zd_cmdl_build(struct zd_cmdl *cmdl, int argc, char **argv);
-ZD_DEF void zd_cmdl_usage(struct zd_cmdl *cmdl,
-        const char *(*tbl)[2], size_t cnt);
+ZD_DEF void zd_cmdl_usage(struct zd_cmdl *cmdl);
 ZD_DEF bool zd_cmdl_isuse(struct zd_cmdl *cmdl, const char *optname);
 ZD_DEF bool zd_cmdl_get_optval(struct zd_cmdl *cmdl,
         const char *optname, struct zd_dyna *val);
 ZD_DEF void zd_cmdl_destroy(void *arg);
+ZD_DEF void zd_cmdlopt_init(struct zd_cmdlopt *opt);
 ZD_DEF void zd_cmdlopt_destroy(void *arg);
 
 #endif /* ZD_COMMAND_LINE */
@@ -612,53 +623,119 @@ ZD_DEF bool zd_wildcard_match(const char *str, const char *pattern);
 
 #ifdef ZD_COMMAND_LINE
 
+ZD_DEF void zd_cmdlopt_init(struct zd_cmdlopt *opt)
+{
+    opt->name = (struct zd_string) {0};
+    zd_dyna_init(&opt->vals, sizeof(struct zd_string), zd_string_destroy);
+    opt->description = (struct zd_string) {0};
+}
+
+ZD_DEF void zd_cmdl_init(struct zd_cmdl *cmdl)
+{
+    cmdl->program = (struct zd_string) {0};
+    zd_dyna_init(&cmdl->defines, sizeof(struct zd_cmdlopt), zd_cmdlopt_destroy);
+    zd_dyna_init(&cmdl->nopts, sizeof(struct zd_string), zd_string_destroy);
+    zd_dyna_init(&cmdl->opts,  sizeof(struct zd_cmdlopt), zd_cmdlopt_destroy);
+}
+
+ZD_DEF void zd_cmdl_define(struct zd_cmdl *cmdl, const char *name,
+        const char *description)
+{
+    if (!name)
+        return;
+
+    struct zd_cmdlopt opt = {0};
+    zd_cmdlopt_init(&opt);
+
+    zd_string_append(&opt.name, "-%s", name);
+    zd_string_append(&opt.description, description);
+
+    zd_dyna_append(&cmdl->defines, &opt);
+}
+
+static inline char *_skip_dash(char *arg)
+{
+    for (int i = 0; i < (int) strlen(arg); i++) {
+        if (arg[i] == '-')
+            continue;
+        return arg + i;
+    }
+
+    return NULL;
+}
+
+static inline bool _is_opt_defined(struct zd_cmdl *cmdl, const char *optname)
+{
+    for (size_t i = 0; i < cmdl->defines.count; i++) {
+        struct zd_cmdlopt *saved_opt = zd_dyna_get(&cmdl->defines, i);
+        if (strcmp(saved_opt->name.base, optname) == 0)
+            return true;
+    }
+    return false;
+}
+
 ZD_DEF void zd_cmdl_build(struct zd_cmdl *cmdl, int argc, char **argv)
 {
-    cmdl->program = argv[0];
-    cmdl->count = (size_t) argc;
-    zd_dyna_init(&cmdl->nopts, sizeof(char *), NULL);
-    zd_dyna_init(&cmdl->opts,  sizeof(struct zd_cmdlopt), zd_cmdlopt_destroy);
+    zd_string_append(&cmdl->program, argv[0]);
 
     for (int i = 1; i < argc; i++) {
-        char *arg = argv[i];
-
-        if (arg[0] == '-') { /* option */
+        if (argv[i][0] == '-') { /* option */
             struct zd_cmdlopt opt = {0};
-            zd_dyna_init(&opt.vals, sizeof(char *), NULL);
+            zd_dyna_init(&opt.vals, sizeof(struct zd_string), zd_string_destroy);
 
             /* add the correspoding option values to opt */
-            opt.name = arg;
-            for (i = i + 1; i < argc; i++) {
-                /* new option */
-                if (argv[i][0] == '-') {
-                    i = i - 1;  /* we have i++ at the end of outside for-loop */
-                    break;
+            const char *p1 = _skip_dash(argv[i]);
+            const char *p2 = strchr(p1, '=');
+            bool has_equal = (p2 != NULL);
+
+            if (!p1)
+                continue;
+
+            if (has_equal) {
+                opt.name = zd_string_sub(p1, 0, p2 - p1);
+                struct zd_string val = {0};
+                if (*(p2 + 1)) {
+                    zd_string_append(&val, p2 + 1);
+                    zd_dyna_append(&opt.vals, &val);
                 }
-                /* option value for current option */
-                char *val = argv[i];
-                zd_dyna_append(&opt.vals, val);
+            } else { 
+                zd_string_append(&opt.name, p1);
+                for (i = i + 1; i < argc; i++) {
+                    /* new option */
+                    if (argv[i][0] == '-') {
+                        i = i - 1;  /* we have i++ at the end of outside for-loop */
+                        break;
+                    }
+                    /* option value for current option */
+                    struct zd_string val = {0};
+                    zd_string_append(&val, argv[i]);
+                    zd_dyna_append(&opt.vals, &val);
+                }
             }
 
             zd_dyna_append(&cmdl->opts, &opt);
         } else { /* not a option */
-            zd_dyna_append(&cmdl->nopts, arg);
+            struct zd_string arg = {0};
+            zd_string_append(&arg, argv[i]);
+            zd_dyna_append(&cmdl->nopts, &arg);
         }
     }
 }
 
-ZD_DEF void zd_cmdl_usage(struct zd_cmdl *cmdl, 
-        const char *(*tbl)[2], size_t cnt)
+ZD_DEF void zd_cmdl_usage(struct zd_cmdl *cmdl)
 {
-    fprintf(stderr, "Usage: %s ...\n", cmdl->program);
-    for (size_t i = 0; i < cnt; i++)
-        fprintf(stderr, "  %-10s\t%s\n", tbl[i][0], tbl[i][1]);
+    fprintf(stderr, "Usage: %s ...\n", cmdl->program.base);
+    for (size_t i = 0; i < cmdl->defines.count; i++) {
+        struct zd_cmdlopt *opt = zd_dyna_get(&cmdl->defines, i);
+        fprintf(stderr, "  %-10s\t%s\n", opt->name.base, opt->description.base);
+    }
 }
 
 ZD_DEF bool zd_cmdl_isuse(struct zd_cmdl *cmdl, const char *optname)
 {
     for (size_t i = 0; i < cmdl->opts.count; i++) {
         struct zd_cmdlopt *saved_opt = zd_dyna_get(&cmdl->opts, i);
-        if (strcmp(saved_opt->name, optname) == 0)
+        if (strcmp(saved_opt->name.base, optname) == 0)
             return true;
     }
     return false;
@@ -669,7 +746,7 @@ ZD_DEF bool zd_cmdl_get_optval(struct zd_cmdl *cmdl,
 {
     for (size_t i = 0; i < cmdl->opts.count; i++) {
         struct zd_cmdlopt *saved_opt = zd_dyna_get(&cmdl->opts, i);
-        if (strcmp(saved_opt->name, optname) == 0) {
+        if (strcmp(saved_opt->name.base, optname) == 0) {
             *val = saved_opt->vals;
             return true;
         }
@@ -681,8 +758,8 @@ ZD_DEF bool zd_cmdl_get_optval(struct zd_cmdl *cmdl,
 ZD_DEF void zd_cmdl_destroy(void *arg)
 {
     struct zd_cmdl *cmdl = (struct zd_cmdl *) arg;
-    cmdl->program = NULL;
-    cmdl->count = 0;
+    zd_string_destroy(&cmdl->program);
+    zd_dyna_destroy(&cmdl->defines);
     zd_dyna_destroy(&cmdl->nopts);
     zd_dyna_destroy(&cmdl->opts);
 }
@@ -691,6 +768,8 @@ ZD_DEF void zd_cmdlopt_destroy(void *arg)
 {
     struct zd_cmdlopt *opt = (struct zd_cmdlopt *) arg;
     zd_dyna_destroy(&opt->vals);
+    zd_string_destroy(&opt->name);
+    zd_string_destroy(&opt->description);
 }
 
 #endif /* ZD_COMMAND_LINE */
@@ -700,6 +779,7 @@ ZD_DEF void zd_cmdlopt_destroy(void *arg)
 #define LOG_INFO  1
 #define LOG_ERROR 2
 #define LOG_GOOD  3
+#define LOG_FATAL 4
 
 ZD_DEF void zd_log(int type, const char *fmt, ...);
 
@@ -1345,6 +1425,9 @@ ZD_DEF void *zd_dyna_next(struct zd_dyna *da)
 
 ZD_DEF void zd_string_append(struct zd_string *str, const char *fmt, ...)
 {
+    if (!fmt)
+        return;
+
     va_list args, args_copy;
     va_start(args, fmt);
     va_copy(args_copy, args);
@@ -1375,15 +1458,16 @@ ZD_DEF void zd_string_append(struct zd_string *str, const char *fmt, ...)
     va_end(args);
 }
 
-ZD_DEF struct zd_string zd_string_sub(struct zd_string *str, size_t src, size_t dest)
+/* [src, dest) */
+ZD_DEF struct zd_string zd_string_sub(const char *str, size_t src, size_t dest)
 {
     struct zd_string res = {0};
-    if (src >= str->length || dest > str->length || src >= dest) 
+    if (src >= strlen(str) || dest > strlen(str) || src >= dest) 
         return res;
 
-    char buf[dest-src+1];
-    memcpy(buf, str->base+src, dest-src);
-    buf[dest-src] = '\0';
+    char buf[dest - src + 1];
+    memcpy(buf, str + src, dest - src);
+    buf[dest - src] = '\0';
     zd_string_append(&res, buf);
 
     return res;
@@ -1924,6 +2008,7 @@ ZD_DEF void zd_print(int opt, ...)
 #define ZD_LOG_COLOR_RED     "\x1b[31m"
 #define ZD_LOG_COLOR_GREEN   "\x1b[32m"
 #define ZD_LOG_COLOR_YELLOW  "\x1b[33m"
+#define ZD_LOG_COLOR_BG_RED  "\x1b[41m"
 
 ZD_DEF void zd_log(int type, const char *fmt, ...)
 {
@@ -1940,6 +2025,7 @@ ZD_DEF void zd_log(int type, const char *fmt, ...)
 
     size_t buf_size = len + 100;
     char buf1[buf_size], buf2[buf_size];
+    bool is_exit = false;
 
     switch ((type)) {
     case LOG_INFO:
@@ -1957,6 +2043,12 @@ ZD_DEF void zd_log(int type, const char *fmt, ...)
                 ZD_LOG_COLOR_RESET, fmt);
         break;
 
+    case LOG_FATAL:
+        snprintf(buf1, buf_size, "[%sFATAL%s] %s\n", ZD_LOG_COLOR_BG_RED,
+                ZD_LOG_COLOR_RESET, fmt);
+        is_exit = true;
+        break;
+
     default:
         break;
     }
@@ -1965,12 +2057,16 @@ ZD_DEF void zd_log(int type, const char *fmt, ...)
     fprintf(stderr, "%s", buf2);
 
     va_end(args);
+
+    if (is_exit)
+        exit(EXIT_FAILURE);
 }
 
 #undef ZD_LOG_COLOR_RESET
 #undef ZD_LOG_COLOR_RED
 #undef ZD_LOG_COLOR_GREEN
 #undef ZD_LOG_COLOR_YELLOW
+#undef ZD_LOG_COLOR_BG_RED
 
 #endif /* ZD_LOG */
 

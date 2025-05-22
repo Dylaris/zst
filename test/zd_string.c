@@ -12,7 +12,7 @@ char *test(void)
     zd_assert(string.length == strlen("hello world\n"), NULL);
     zd_assert(string.capacity == 128, NULL);
 
-    struct zd_string sub_string = zd_string_sub(&string, 0, 5);
+    struct zd_string sub_string = zd_string_sub(string.base, 0, 5);
     zd_assert(strcmp(sub_string.base, "hello") == 0, NULL);
     zd_assert(sub_string.length == strlen("hello"), NULL);
     zd_assert(sub_string.capacity == 128, NULL);

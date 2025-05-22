@@ -16,7 +16,8 @@ Example of using `zd_log`:
 ```console
 $ cd examples
 $ gcc -I ../ zd_make.c
-$ ./zd_make -compile
+$ ./a.out -help
+$ ./a.out -compile
 $ ./zd_log
 [ERROR] This is error message
 [INFO] This is info message

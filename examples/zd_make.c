@@ -18,7 +18,7 @@ void compile(void)
             continue;
 
         zd_string_append(&src, md.files[i]);
-        exe = zd_string_sub(&src, 0, strlen(md.files[i]) - 2);
+        exe = zd_string_sub(src.base, 0, strlen(md.files[i]) - 2);
 
         struct zd_cmd cmd = {0};
         zd_cmd_init(&cmd);
@@ -50,7 +50,7 @@ void clean(void)
 
         struct zd_string src = {0}, exe = {0};
         zd_string_append(&src, md.files[i]);
-        exe = zd_string_sub(&src, 0, strlen(md.files[i]) - 2);
+        exe = zd_string_sub(src.base, 0, strlen(md.files[i]) - 2);
 #ifdef _WIN32
         zd_string_append(&exe, ".exe");
 #endif
@@ -62,21 +62,29 @@ void clean(void)
     }
 }
 
+void define_usage(struct zd_cmdl *cmdl)
+{
+    zd_cmdl_define(cmdl, "help", "print help information");
+    zd_cmdl_define(cmdl, "compile", "compile all files");
+    zd_cmdl_define(cmdl, "clean", "clean the generated files");
+}
+
 int main(int argc, char **argv)
 {
     struct zd_cmdl cmdl = {0};
+    zd_cmdl_init(&cmdl);
+
     zd_cmdl_build(&cmdl, argc, argv);
 
-    const char *usage[][2] = {
-        { "-compile", "compile all files" },
-        { "-clean", "clear the generated files" },
-    };
-    zd_cmdl_usage(&cmdl, usage, sizeof(usage) / sizeof(usage[0]));
+    define_usage(&cmdl);
 
-    bool is_clear = zd_cmdl_isuse(&cmdl, "-clean");
-    bool is_compile = zd_cmdl_isuse(&cmdl, "-compile");
+    bool is_help = zd_cmdl_isuse(&cmdl, "help");
+    bool is_clear = zd_cmdl_isuse(&cmdl, "clean");
+    bool is_compile = zd_cmdl_isuse(&cmdl, "compile");
 
-    if (is_compile)
+    if (is_help)
+        zd_cmdl_usage(&cmdl); 
+    else if (is_compile)
         compile();
     else if (is_clear)
         clean();

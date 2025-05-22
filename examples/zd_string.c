@@ -7,7 +7,7 @@ int main(void)
     struct zd_string string = {0};
     zd_string_append(&string, "hello world");
 
-    struct zd_string sub_string = zd_string_sub(&string, 0, 5);
+    struct zd_string sub_string = zd_string_sub(string.base, 0, 5);
     zd_string_append(&sub_string, " %s", "dylaris");
 
     printf("string: %s (length: %zu, capacity: %zu)\n", string.base, string.length, string.capacity);

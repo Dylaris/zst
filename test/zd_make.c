@@ -61,11 +61,10 @@ void clean(void)
     }
 }
 
-void usage(struct zd_cmdl *cmdl)
+void define_rule(struct zd_cmdl *cmdl)
 {
-    zd_cmdl_define(cmdl, "compile", "compile all files");
-    zd_cmdl_define(cmdl, "clean", "clean the generated files");
-    zd_cmdl_usage(cmdl);
+    zd_cmdl_define(cmdl, OPTT_NO_ARG, "compile", "comp", "compile all files");
+    zd_cmdl_define(cmdl, OPTT_NO_ARG, "clean", NULL, "clean the generated files");
 }
 
 int main(int argc, char **argv)
@@ -73,9 +72,11 @@ int main(int argc, char **argv)
     struct zd_cmdl cmdl = {0};
     zd_cmdl_init(&cmdl);
 
+    define_rule(&cmdl);
+
     zd_cmdl_build(&cmdl, argc, argv);
 
-    usage(&cmdl);
+    zd_cmdl_usage(&cmdl);
 
     bool is_clear = zd_cmdl_isuse(&cmdl, "clean");
     bool is_compile = zd_cmdl_isuse(&cmdl, "compile");

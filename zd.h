@@ -63,6 +63,9 @@
   #ifndef ZD_DS_STRING
     #define ZD_DS_STRING
   #endif
+  #ifndef ZD_LOG
+    #define ZD_LOG
+  #endif
 #endif
 
 #ifdef ZD_COROUTINE
@@ -118,6 +121,19 @@
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
+
+#ifdef ZD_LOG
+
+#define LOG_INFO  1
+#define LOG_ERROR 2
+#define LOG_GOOD  3
+#define LOG_TODO  4
+#define LOG_FATAL 5
+
+ZD_DEF void zd_log(int type, const char *fmt, ...);
+
+#endif /* ZD_LOG */
+
 
 #ifdef ZD_TEST
 
@@ -412,32 +428,37 @@ ZD_DEF void zd_fs_destroy_md(struct zd_meta_dir *md);
 
 #ifdef ZD_COMMAND_LINE
 
-#define OPT_NOARG 0
-#define OPT_NARGS -1
+/* option type */
+#define OPTT_NO_ARG     0
+#define OPTT_SINGLE_ARG 1
+#define OPTT_MULTI_ARG  2
 
 struct zd_cmdlopt {
-    struct zd_string name;
-    struct zd_dyna vals;    /* each element is 'struct zd_string' */
-
-    /* for defined option */
+    int type;
+    bool lflag;             /* use long name or not */
+    struct zd_string name;  /* used in command line */
+    struct zd_string lname; /* long name (use --) */
+    struct zd_string sname; /* short name (use -) */
+    struct zd_dyna vals;    /* target values, each element is 'struct zd_string' */
+    struct zd_dyna pargs;   /* positional args, each element is 'struct zd_string' */
     struct zd_string description;
 };
 
 struct zd_cmdl {
     struct zd_string program;
-    struct zd_dyna defines;
-    struct zd_dyna nopts;   /* each element is 'struct zd_string' */
+    struct zd_dyna pargs;   /* positional args, each element is 'struct zd_string' */
     struct zd_dyna opts;    /* each element is 'struct zd_cmdlopt' */
+    struct zd_dyna rules;   /* each element is 'struct zd_cmdlopt' */
 };
 
 ZD_DEF void zd_cmdl_init(struct zd_cmdl *cmdl);
-ZD_DEF void zd_cmdl_define(struct zd_cmdl *cmdl, const char *name,
-        const char *description);
+ZD_DEF void zd_cmdl_define(struct zd_cmdl *cmdl, int type,
+        const char *lname, const char *sname, const char *description);
 ZD_DEF void zd_cmdl_build(struct zd_cmdl *cmdl, int argc, char **argv);
 ZD_DEF void zd_cmdl_usage(struct zd_cmdl *cmdl);
 ZD_DEF bool zd_cmdl_isuse(struct zd_cmdl *cmdl, const char *optname);
-ZD_DEF bool zd_cmdl_get_optval(struct zd_cmdl *cmdl,
-        const char *optname, struct zd_dyna *val);
+ZD_DEF bool zd_cmdl_get_opt(struct zd_cmdl *cmdl, 
+        const char *optname, struct zd_cmdlopt *opt);
 ZD_DEF void zd_cmdl_destroy(void *arg);
 ZD_DEF void zd_cmdlopt_init(struct zd_cmdlopt *opt);
 ZD_DEF void zd_cmdlopt_destroy(void *arg);
@@ -625,32 +646,39 @@ ZD_DEF bool zd_wildcard_match(const char *str, const char *pattern);
 
 ZD_DEF void zd_cmdlopt_init(struct zd_cmdlopt *opt)
 {
+    opt->type = OPTT_NO_ARG;
+    opt->lflag = false;
     opt->name = (struct zd_string) {0};
+    opt->lname = (struct zd_string) {0};
+    opt->sname = (struct zd_string) {0};
     zd_dyna_init(&opt->vals, sizeof(struct zd_string), zd_string_destroy);
+    zd_dyna_init(&opt->pargs, sizeof(struct zd_string), zd_string_destroy);
     opt->description = (struct zd_string) {0};
 }
 
 ZD_DEF void zd_cmdl_init(struct zd_cmdl *cmdl)
 {
     cmdl->program = (struct zd_string) {0};
-    zd_dyna_init(&cmdl->defines, sizeof(struct zd_cmdlopt), zd_cmdlopt_destroy);
-    zd_dyna_init(&cmdl->nopts, sizeof(struct zd_string), zd_string_destroy);
-    zd_dyna_init(&cmdl->opts,  sizeof(struct zd_cmdlopt), zd_cmdlopt_destroy);
+    zd_dyna_init(&cmdl->pargs, sizeof(struct zd_string), zd_string_destroy);
+    zd_dyna_init(&cmdl->opts, sizeof(struct zd_cmdlopt), zd_cmdlopt_destroy);
+    zd_dyna_init(&cmdl->rules, sizeof(struct zd_cmdlopt), zd_cmdlopt_destroy);
 }
 
-ZD_DEF void zd_cmdl_define(struct zd_cmdl *cmdl, const char *name,
-        const char *description)
+ZD_DEF void zd_cmdl_define(struct zd_cmdl *cmdl, int type,
+        const char *lname, const char *sname, const char *description)
 {
-    if (!name)
+    if ((type < 0 || type > 2) || (!lname && !sname))
         return;
 
     struct zd_cmdlopt opt = {0};
     zd_cmdlopt_init(&opt);
 
-    zd_string_append(&opt.name, "-%s", name);
-    zd_string_append(&opt.description, description);
+    opt.type = type;
+    zd_string_append(&opt.lname, lname ? lname : "@@");
+    zd_string_append(&opt.sname, sname ? sname : "@@");
+    zd_string_append(&opt.description, description ? description : "@@");
 
-    zd_dyna_append(&cmdl->defines, &opt);
+    zd_dyna_append(&cmdl->rules, &opt);
 }
 
 static inline char *_skip_dash(char *arg)
@@ -664,60 +692,175 @@ static inline char *_skip_dash(char *arg)
     return NULL;
 }
 
-static inline bool _is_opt_defined(struct zd_cmdl *cmdl, const char *optname)
+static inline int _get_opt_type(struct zd_cmdl *cmdl, const char *optname)
 {
-    for (size_t i = 0; i < cmdl->defines.count; i++) {
-        struct zd_cmdlopt *saved_opt = zd_dyna_get(&cmdl->defines, i);
-        if (strcmp(saved_opt->name.base, optname) == 0)
-            return true;
+    for (size_t i = 0; i < cmdl->rules.count; i++) {
+        struct zd_cmdlopt *opt = zd_dyna_get(&cmdl->rules, i);
+        if ((strcmp(opt->lname.base, optname) == 0) ||
+            (strcmp(opt->sname.base, optname) == 0))
+            return opt->type;
     }
-    return false;
+    return OPTT_MULTI_ARG;
+}
+
+static inline void _fill_lsname_and_check(struct zd_cmdl *cmdl, struct zd_cmdlopt *opt)
+{
+    int is_lname = 0;
+    for (size_t i = 0; i < cmdl->rules.count; i++) {
+        struct zd_cmdlopt *saved_opt = zd_dyna_get(&cmdl->rules, i);
+        if (strcmp(saved_opt->lname.base, opt->name.base) == 0)
+            is_lname = 1;
+        else if (strcmp(saved_opt->sname.base, opt->name.base) == 0)
+            is_lname = -1;
+
+        if (is_lname != 0) {
+            /* had been defined */
+            zd_string_append(&opt->lname, saved_opt->lname.base);
+            zd_string_append(&opt->sname, saved_opt->sname.base);
+            break;
+        }
+    }
+
+    if (is_lname == 0)
+        /* had no tbeen defined */
+        return;
+
+    if (is_lname == 1) {
+        if (opt->lflag == false)
+            zd_log(LOG_FATAL, "option '-%s' is invalid", opt->name.base);
+    }
+    if (is_lname == -1) {
+        if (opt->lflag == true)
+            zd_log(LOG_FATAL, "option '--%s' is invalid", opt->name.base);
+    }
 }
 
 ZD_DEF void zd_cmdl_build(struct zd_cmdl *cmdl, int argc, char **argv)
 {
-    zd_string_append(&cmdl->program, argv[0]);
+    int pos = 0;     /* track the arg */
 
-    for (int i = 1; i < argc; i++) {
-        if (argv[i][0] == '-') { /* option */
-            struct zd_cmdlopt opt = {0};
-            zd_dyna_init(&opt.vals, sizeof(struct zd_string), zd_string_destroy);
+    zd_string_append(&cmdl->program, argv[pos++]);
 
-            /* add the correspoding option values to opt */
-            const char *p1 = _skip_dash(argv[i]);
-            const char *p2 = strchr(p1, '=');
-            bool has_equal = (p2 != NULL);
+    /* handle the positional args for program without options */
+    while (pos < argc) {
+        if (argv[pos][0] == '-')
+            break;
+        struct zd_string arg = {0};
+        zd_string_append(&arg, argv[pos]);
+        zd_dyna_append(&cmdl->pargs, &arg);
+        pos++;
+    }
 
-            if (!p1)
-                continue;
+    /* handle the remaining options */
+    while (pos < argc) {
+        bool one_dash = false;
+        if (argv[pos][0] == '-' && argv[pos][1] == '-')
+            one_dash = false;
+        else
+            one_dash = true;
 
-            if (has_equal) {
-                opt.name = zd_string_sub(p1, 0, p2 - p1);
-                struct zd_string val = {0};
-                if (*(p2 + 1)) {
-                    zd_string_append(&val, p2 + 1);
-                    zd_dyna_append(&opt.vals, &val);
-                }
-            } else { 
-                zd_string_append(&opt.name, p1);
-                for (i = i + 1; i < argc; i++) {
-                    /* new option */
-                    if (argv[i][0] == '-') {
-                        i = i - 1;  /* we have i++ at the end of outside for-loop */
-                        break;
-                    }
-                    /* option value for current option */
-                    struct zd_string val = {0};
-                    zd_string_append(&val, argv[i]);
-                    zd_dyna_append(&opt.vals, &val);
-                }
+        const char *p1 = _skip_dash(argv[pos]);
+        const char *p2 = strchr(p1, '=');
+        bool has_equal = (p2 != NULL);
+
+        if (!p1) {
+            pos++;
+            continue;
+        }
+
+        struct zd_cmdlopt opt = {0};
+        zd_cmdlopt_init(&opt);
+
+        if (one_dash)
+            opt.lflag = false;
+        else
+            opt.lflag = true;
+
+        /* add target values for this option according to its type */
+        if (has_equal) {
+            opt.name = zd_string_sub(p1, 0, p2 - p1);
+            opt.type = OPTT_SINGLE_ARG;
+
+            struct zd_string val = {0};
+            if (*(p2 + 1)) {
+                zd_string_append(&val, p2 + 1);
+                zd_dyna_append(&opt.vals, &val);
             }
 
-            zd_dyna_append(&cmdl->opts, &opt);
-        } else { /* not a option */
+            pos++;
+        } else { 
+            zd_string_append(&opt.name, p1);
+            opt.type = _get_opt_type(cmdl, opt.name.base);
+            pos++;
+
+            struct zd_string val;
+            switch (opt.type) {
+            case OPTT_NO_ARG:
+                break;
+
+            case OPTT_SINGLE_ARG:
+                if (argv[pos][0] == '-')
+                    zd_log(LOG_FATAL, "it should be an argument: %s", argv[pos]);
+                val = (struct zd_string) {0};
+                zd_string_append(&val, argv[pos]);
+                zd_dyna_append(&opt.vals, &val);
+                pos++;
+                break;
+
+            case OPTT_MULTI_ARG:
+                while (pos < argc) {
+                    if (argv[pos][0] == '-')
+                        break;
+                    val = (struct zd_string) {0};
+                    zd_string_append(&val, argv[pos]);
+                    zd_dyna_append(&opt.vals, &val);
+                    pos++;
+                }
+                break;
+
+            default:
+                zd_log(LOG_FATAL, "invalid option type");
+                break;
+            }
+        }
+        _fill_lsname_and_check(cmdl, &opt);
+
+        /* add positional args for this option */
+        while (pos < argc) {
+            if (argv[pos][0] == '-')
+                break;
             struct zd_string arg = {0};
-            zd_string_append(&arg, argv[i]);
-            zd_dyna_append(&cmdl->nopts, &arg);
+            zd_string_append(&arg, argv[pos]);
+            zd_dyna_append(&opt.pargs, &arg);
+            pos++;
+        }
+
+        /* append all stuff if the option had been used instead of adding */
+        bool is_use = zd_cmdl_isuse(cmdl, opt.name.base);
+        if (is_use) {
+            struct zd_cmdlopt *saved_opt;
+            for (size_t i = 0; i < cmdl->opts.count; i++) {
+                saved_opt = zd_dyna_get(&cmdl->opts, i);
+                if (strcmp(saved_opt->name.base, opt.name.base) == 0)
+                    break;
+            }
+
+            struct zd_string *val;
+            for (size_t i = 0; i < opt.vals.count; i++) {
+                val = zd_dyna_get(&opt.vals, i);
+                zd_dyna_append(&saved_opt->vals, &val);
+            }
+            struct zd_string *arg;
+            for (size_t i = 0; i < opt.pargs.count; i++) {
+                arg = zd_dyna_get(&opt.pargs, i);
+                zd_dyna_append(&saved_opt->pargs, &arg);
+            }
+
+            zd_string_destroy(&opt.name);
+            zd_string_destroy(&opt.lname);
+            zd_string_destroy(&opt.sname);
+        } else {
+            zd_dyna_append(&cmdl->opts, &opt);
         }
     }
 }
@@ -725,29 +868,45 @@ ZD_DEF void zd_cmdl_build(struct zd_cmdl *cmdl, int argc, char **argv)
 ZD_DEF void zd_cmdl_usage(struct zd_cmdl *cmdl)
 {
     fprintf(stderr, "Usage: %s ...\n", cmdl->program.base);
-    for (size_t i = 0; i < cmdl->defines.count; i++) {
-        struct zd_cmdlopt *opt = zd_dyna_get(&cmdl->defines, i);
-        fprintf(stderr, "  %-10s\t%s\n", opt->name.base, opt->description.base);
+    for (size_t i = 0; i < cmdl->rules.count; i++) {
+        struct zd_cmdlopt *opt = zd_dyna_get(&cmdl->rules, i);
+        struct zd_string name = {0};
+        zd_string_append(&name, "-%s --%s", opt->sname.base, opt->lname.base);
+        fprintf(stderr, "  %-20s %s\n", name.base, opt->description.base);
+        zd_string_destroy(&name);
     }
 }
 
 ZD_DEF bool zd_cmdl_isuse(struct zd_cmdl *cmdl, const char *optname)
 {
+    if (!optname)
+        return false;
+
     for (size_t i = 0; i < cmdl->opts.count; i++) {
-        struct zd_cmdlopt *saved_opt = zd_dyna_get(&cmdl->opts, i);
-        if (strcmp(saved_opt->name.base, optname) == 0)
+        struct zd_cmdlopt *opt = zd_dyna_get(&cmdl->opts, i);
+        if ((opt->name.base && strcmp(opt->name.base, optname) == 0) ||
+            (opt->lname.base && strcmp(opt->lname.base, optname) == 0) ||
+            (opt->sname.base && strcmp(opt->sname.base, optname) == 0))
             return true;
     }
     return false;
 }
 
-ZD_DEF bool zd_cmdl_get_optval(struct zd_cmdl *cmdl, 
-        const char *optname, struct zd_dyna *val)
+ZD_DEF bool zd_cmdl_get_opt(struct zd_cmdl *cmdl, 
+        const char *optname, struct zd_cmdlopt *opt)
 {
+    if (!optname)
+        return false;
+
     for (size_t i = 0; i < cmdl->opts.count; i++) {
         struct zd_cmdlopt *saved_opt = zd_dyna_get(&cmdl->opts, i);
-        if (strcmp(saved_opt->name.base, optname) == 0) {
-            *val = saved_opt->vals;
+        if ((saved_opt->name.base &&
+             strcmp(saved_opt->name.base, optname) == 0) ||
+            (saved_opt->lname.base &&
+             strcmp(saved_opt->lname.base, optname) == 0) ||
+            (saved_opt->sname.base &&
+             strcmp(saved_opt->sname.base, optname) == 0)) {
+            *opt = *saved_opt;
             return true;
         }
     }
@@ -759,31 +918,25 @@ ZD_DEF void zd_cmdl_destroy(void *arg)
 {
     struct zd_cmdl *cmdl = (struct zd_cmdl *) arg;
     zd_string_destroy(&cmdl->program);
-    zd_dyna_destroy(&cmdl->defines);
-    zd_dyna_destroy(&cmdl->nopts);
+    zd_dyna_destroy(&cmdl->pargs);
     zd_dyna_destroy(&cmdl->opts);
+    zd_dyna_destroy(&cmdl->rules);
 }
 
 ZD_DEF void zd_cmdlopt_destroy(void *arg)
 {
     struct zd_cmdlopt *opt = (struct zd_cmdlopt *) arg;
-    zd_dyna_destroy(&opt->vals);
+    opt->type = OPTT_NO_ARG;
+    opt->lflag = false;
     zd_string_destroy(&opt->name);
+    zd_string_destroy(&opt->lname);
+    zd_string_destroy(&opt->sname);
+    zd_dyna_destroy(&opt->vals);
+    zd_dyna_destroy(&opt->pargs);
     zd_string_destroy(&opt->description);
 }
 
 #endif /* ZD_COMMAND_LINE */
-
-#ifdef ZD_LOG
-
-#define LOG_INFO  1
-#define LOG_ERROR 2
-#define LOG_GOOD  3
-#define LOG_FATAL 4
-
-ZD_DEF void zd_log(int type, const char *fmt, ...);
-
-#endif /* ZD_LOG */
 
 #ifdef ZD_FS
 
@@ -2004,11 +2157,12 @@ ZD_DEF void zd_print(int opt, ...)
 
 #ifdef ZD_LOG
 
-#define ZD_LOG_COLOR_RESET   "\x1b[0m"
-#define ZD_LOG_COLOR_RED     "\x1b[31m"
-#define ZD_LOG_COLOR_GREEN   "\x1b[32m"
-#define ZD_LOG_COLOR_YELLOW  "\x1b[33m"
-#define ZD_LOG_COLOR_BG_RED  "\x1b[41m"
+#define ZD_LOG_COLOR_RESET      "\x1b[0m"
+#define ZD_LOG_COLOR_FG_RED     "\x1b[31m"
+#define ZD_LOG_COLOR_FG_GREEN   "\x1b[32m"
+#define ZD_LOG_COLOR_FG_YELLOW  "\x1b[33m"
+#define ZD_LOG_COLOR_BG_RED     "\x1b[41m"
+#define ZD_LOG_COLOR_BG_GREEN   "\x1b[42m"
 
 ZD_DEF void zd_log(int type, const char *fmt, ...)
 {
@@ -2029,22 +2183,28 @@ ZD_DEF void zd_log(int type, const char *fmt, ...)
 
     switch ((type)) {
     case LOG_INFO:
-        snprintf(buf1, buf_size, "[%sINFO%s] %s\n", ZD_LOG_COLOR_YELLOW,
+        snprintf(buf1, buf_size, "[%sINFO%s] %s\n", ZD_LOG_COLOR_FG_YELLOW,
                 ZD_LOG_COLOR_RESET, fmt);
         break;
 
     case LOG_ERROR:
-        snprintf(buf1, buf_size, "[%sERROR%s] %s\n", ZD_LOG_COLOR_RED,
+        snprintf(buf1, buf_size, "[%sERROR%s] %s\n", ZD_LOG_COLOR_FG_RED,
                 ZD_LOG_COLOR_RESET, fmt);
         break;
 
     case LOG_GOOD:
-        snprintf(buf1, buf_size, "[%sGOOD%s] %s\n", ZD_LOG_COLOR_GREEN,
+        snprintf(buf1, buf_size, "[%sGOOD%s] %s\n", ZD_LOG_COLOR_FG_GREEN,
                 ZD_LOG_COLOR_RESET, fmt);
         break;
 
     case LOG_FATAL:
         snprintf(buf1, buf_size, "[%sFATAL%s] %s\n", ZD_LOG_COLOR_BG_RED,
+                ZD_LOG_COLOR_RESET, fmt);
+        is_exit = true;
+        break;
+
+    case LOG_TODO:
+        snprintf(buf1, buf_size, "[%sTODO%s] %s\n", ZD_LOG_COLOR_BG_GREEN,
                 ZD_LOG_COLOR_RESET, fmt);
         is_exit = true;
         break;
@@ -2061,12 +2221,6 @@ ZD_DEF void zd_log(int type, const char *fmt, ...)
     if (is_exit)
         exit(EXIT_FAILURE);
 }
-
-#undef ZD_LOG_COLOR_RESET
-#undef ZD_LOG_COLOR_RED
-#undef ZD_LOG_COLOR_GREEN
-#undef ZD_LOG_COLOR_YELLOW
-#undef ZD_LOG_COLOR_BG_RED
 
 #endif /* ZD_LOG */
 

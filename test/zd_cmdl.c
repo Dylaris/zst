@@ -23,14 +23,14 @@ static char *test2(void)
 
 static char *test3(void)
 {
-    zd_assert(cmdl.nopts.count == 3, "cmdl non-opts count");
+    zd_assert(cmdl.pargs.count == 3, "cmdl pargs count");
 
     struct zd_string *p_string;
-    p_string = (struct zd_string *) zd_dyna_get(&cmdl.nopts, 0); zd_assert(strcmp(p_string->base, "a") == 0, NULL);
-    p_string = (struct zd_string *) zd_dyna_get(&cmdl.nopts, 1); zd_assert(strcmp(p_string->base, "b") == 0, NULL);
-    p_string = (struct zd_string *) zd_dyna_get(&cmdl.nopts, 2); zd_assert(strcmp(p_string->base, "c") == 0, NULL);
+    p_string = (struct zd_string *) zd_dyna_get(&cmdl.pargs, 0); zd_assert(strcmp(p_string->base, "a") == 0, NULL);
+    p_string = (struct zd_string *) zd_dyna_get(&cmdl.pargs, 1); zd_assert(strcmp(p_string->base, "b") == 0, NULL);
+    p_string = (struct zd_string *) zd_dyna_get(&cmdl.pargs, 2); zd_assert(strcmp(p_string->base, "c") == 0, NULL);
 
-    return "test cmdl non-opts done!";
+    return "test cmdl pargs done!";
 }
 
 static char *test4(void)
@@ -66,19 +66,19 @@ static char *test4(void)
 
 static char *test5(void)
 {
-    struct zd_dyna vals = {0};
-    bool is_valid = zd_cmdl_get_optval(&cmdl, "opt1", &vals);
+    struct zd_cmdlopt opt = {0};
+    bool is_valid = zd_cmdl_get_opt(&cmdl, "opt1", &opt);
     zd_assert(is_valid == true, NULL);
-    zd_assert(vals.count == 2, NULL);
+    zd_assert(opt.vals.count == 2, NULL);
 
     struct zd_string *p_string;
-    p_string = (struct zd_string *) zd_dyna_get(&vals, 0); zd_assert(strcmp(p_string->base, "val1_1") == 0, NULL);
-    p_string = (struct zd_string *) zd_dyna_get(&vals, 1); zd_assert(strcmp(p_string->base, "val1_2") == 0, NULL);
-    p_string = (struct zd_string *) zd_dyna_get(&vals, 2); zd_assert(p_string == NULL, NULL);
+    p_string = (struct zd_string *) zd_dyna_get(&opt.vals, 0); zd_assert(strcmp(p_string->base, "val1_1") == 0, NULL);
+    p_string = (struct zd_string *) zd_dyna_get(&opt.vals, 1); zd_assert(strcmp(p_string->base, "val1_2") == 0, NULL);
+    p_string = (struct zd_string *) zd_dyna_get(&opt.vals, 2); zd_assert(p_string == NULL, NULL);
 
-    is_valid = zd_cmdl_get_optval(&cmdl, "opt6", &vals);
+    is_valid = zd_cmdl_get_opt(&cmdl, "opt6", &opt);
     zd_assert(is_valid == false, NULL);
-    zd_assert(vals.count == 2, NULL);
+    zd_assert(opt.vals.count == 2, NULL);
 
     return "test cmdl get_opt done!";
 }

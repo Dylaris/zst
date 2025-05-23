@@ -84,6 +84,12 @@
   #ifndef ZD_LOG
     #define ZD_LOG
   #endif
+  #ifndef ZD_FS
+    #define ZD_FS
+  #endif
+  #ifndef ZD_WILDCARD
+    #define ZD_WILDCARD
+  #endif
   #ifndef ZD_COMMAND_LINE
     #define ZD_COMMAND_LINE
   #endif
@@ -391,6 +397,7 @@ ZD_DEF void zd_list_set(struct zd_list *list, size_t idx, void *elem);
   #include <dirent.h>
   #include <fcntl.h>
   #include <errno.h>
+  #include <time.h>
   #include <sys/stat.h>
   #include <sys/types.h>
 #endif /* platform */
@@ -418,6 +425,8 @@ struct zd_meta_dir {
     size_t count;
 };
 
+
+ZD_DEF unsigned long long zd_fs_get_timestamp(const char *pathname);
 ZD_DEF char *zd_fs_getname(const char *pathname);
 ZD_DEF bool zd_fs_pwd(char *buf, size_t buf_size);
 ZD_DEF bool zd_fs_cd(const char *pathname);
@@ -529,10 +538,13 @@ ZD_DEF void zd_cmd_destroy(struct zd_cmd *cmd);
   #endif /* ZD_IMPLEMENTATION */
 #endif /* zd_cmd_append_arg */
 
+#define BUILD_SRC "dy.c"
+#define BUILD_EXE "dy"
+
 static void _build_append_cmd(struct zd_builder *builder, ...);
+ZD_DEF void zd_build_self(int argc, char **argv);
 ZD_DEF void zd_build_init(struct zd_builder *builder);
 ZD_DEF void zd_build_destroy(struct zd_builder *builder);
-ZD_DEF void zd_build_self(struct zd_builder *builder, ...);
 ZD_DEF void zd_build_print(struct zd_builder *builder);
 ZD_DEF int zd_build_run_sync(struct zd_builder *builder);
 ZD_DEF int zd_build_run_async(struct zd_builder *builder);
@@ -788,11 +800,9 @@ static inline void _check_opt(const char *optname,
 {
     if (is_short != one_dash) {
         if (one_dash) {
-            zd_log(LOG_FATAL, "'-%s' is invalid, use '--%s'",
-                    optname, optname);
+            zd_log(LOG_FATAL, "'-%s' is invalid", optname);
         } else {
-            zd_log(LOG_FATAL, "'--%s' is invalid, use '-%s'",
-                    optname, optname);
+            zd_log(LOG_FATAL, "'--%s' is invalid", optname);
         }
     }
 }
@@ -930,6 +940,9 @@ ZD_DEF void zd_cmdl_build(struct zd_cmdl *cmdl, int argc, char **argv)
             case OPTT_SINGLE_ARG:
                 if (opt.vals.count == 1)
                     break;
+                if (pos >= argc)
+                    zd_log(LOG_FATAL, "option '%s' should receive one argument",
+                            opt.name.base);
                 if (argv[pos][0] == '-')
                     zd_log(LOG_FATAL, "'%s' should be an argument of option '%s'",
                             argv[pos], opt.name.base);
@@ -1098,6 +1111,46 @@ static inline int count_line(char *buf, size_t size)
         count++;
 
     return count;
+}
+
+/* return zero if error */
+ZD_DEF unsigned long long zd_fs_get_timestamp(const char *pathname)
+{
+    unsigned long long timestamp = 0;
+
+#if defined(_WIN32)
+    HANDLE hFile = CreateFile(pathname, GENERIC_READ, FILE_SHARE_READ,
+            NULL, OPEN_EXISTING, 0, NULL);
+    if (hFile == INVALID_HANDLE_VALUE) {
+        fprintf(stderr, "ERROR: unable to open file\n");
+        return timestamp;
+    }
+
+    FILETIME ftCreate, ftAccess, ftWrite;
+    if (GetFileTime(hFile, &ftCreate, &ftAccess, &ftWrite)) {
+        SYSTEMTIME stUTC, stLocal;
+        FileTimeToSystemTime(&ftWrite, &stUTC);
+        SystemTimeToTzSpecificLocalTime(NULL, &stUTC, &stLocal);
+        
+        ULONGLONG ft = (((ULONGLONG) ftWrite.dwHighDateTime) << 32) + ftWrite.dwLowDateTime;
+        timestamp = (unsigned long long)((ft - 116444736000000000LL) / 10000000);
+    } else {
+        fprintf(stderr, "ERROR: failed to get file time\n");
+    }
+    CloseHandle(hFile);
+#elif defined(__linux__)
+    struct stat sb;
+    if (stat(pathname, &sb) == -1) {
+        fprintf(stderr, "ERROR: unable to get file stats");
+        return timestamp;
+    }
+
+    timestamp = (unsigned long long) sb.st_mtime;
+#else
+    NOT_SUPPORT("zd_fs_get_timestamp");
+#endif /* platform */
+
+    return timestamp;
 }
 
 ZD_DEF char *zd_fs_getname(const char *pathname)
@@ -2447,21 +2500,40 @@ ZD_DEF int zd_cmd_run(struct zd_cmd *cmd)
     return 0;
 }
 
-ZD_DEF void zd_build_self(struct zd_builder *builder, ...)
+ZD_DEF void zd_build_self(int argc, char **argv)
 {
-    struct zd_cmd cmd = {0};
-    zd_cmd_init(&cmd);
+    zd_fs_copy(BUILD_SRC, "build_src.bak", false);
+    zd_fs_copy(BUILD_EXE, "build_exe.bak", true);
 
-    zd_cmd_append_arg(&cmd, "gcc", "-o", builder->bd_exe, builder->bd_src);
+    unsigned long long src_ts = zd_fs_get_timestamp(BUILD_SRC);
+    unsigned long long exe_ts = zd_fs_get_timestamp(BUILD_EXE);
+    unsigned long long hdr_ts = zd_fs_get_timestamp("zd.h");
 
-    va_list ap;
-    va_start(ap, builder);
-    char *arg = NULL;
-    while ((arg = va_arg(ap, char *)) != NULL)
-        zd_cmd_append_arg(&cmd, arg);
-    va_end(ap);
+    if (exe_ts < src_ts || exe_ts < hdr_ts) {
+        zd_log(LOG_INFO, "UPDATE SELF ......");
+        /* update self */
+        struct zd_cmd cmd = {0};
+        zd_cmd_init(&cmd);
+        zd_cmd_append_arg(&cmd, "gcc", "-o", BUILD_EXE, BUILD_SRC);
+        zd_cmd_append_arg(&cmd, "&&");
+        for (int i = 0; i < argc; i++)
+            zd_cmd_append_arg(&cmd, argv[i]);
 
-    zd_dyna_insert(&builder->cmds, 0, &cmd);
+        zd_cmd_run(&cmd);
+        zd_cmd_destroy(&cmd);
+
+        if (zd_fs_typeof(BUILD_SRC) == FT_NOET)
+            zd_fs_move("build_src.bak", BUILD_SRC, false);
+        if (zd_fs_typeof(BUILD_EXE) == FT_NOET)
+            zd_fs_move("build_exe.bak", BUILD_EXE, true);
+        zd_fs_remove("build_src.bak");
+        zd_fs_remove("build_exe.bak");
+
+        exit(EXIT_SUCCESS);
+    }
+
+    zd_fs_remove("build_src.bak");
+    zd_fs_remove("build_exe.bak");
 }
 
 ZD_DEF void zd_build_init(struct zd_builder *builder)

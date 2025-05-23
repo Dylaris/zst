@@ -62,31 +62,31 @@ void clean(void)
     }
 }
 
-void define_usage(struct zd_cmdl *cmdl)
+void define_rule(struct zd_cmdl *cmdl)
 {
-    zd_cmdl_define(cmdl, "help", "print help information");
-    zd_cmdl_define(cmdl, "compile", "compile all files");
-    zd_cmdl_define(cmdl, "clean", "clean the generated files");
+    zd_cmdl_define(cmdl, OPTT_NO_ARG, "help", "h", "print help information");
+    zd_cmdl_define(cmdl, OPTT_NO_ARG, "compile", "c", "compile all files");
+    zd_cmdl_define(cmdl, OPTT_NO_ARG, "clean", "cl", "clean the generated files");
 }
 
 int main(int argc, char **argv)
 {
     struct zd_cmdl cmdl = {0};
-    zd_cmdl_init(&cmdl);
+    zd_cmdl_init(&cmdl, true);
+
+    define_rule(&cmdl);
 
     zd_cmdl_build(&cmdl, argc, argv);
 
-    define_usage(&cmdl);
-
     bool is_help = zd_cmdl_isuse(&cmdl, "help");
-    bool is_clear = zd_cmdl_isuse(&cmdl, "clean");
+    bool is_clean = zd_cmdl_isuse(&cmdl, "clean");
     bool is_compile = zd_cmdl_isuse(&cmdl, "compile");
 
     if (is_help)
         zd_cmdl_usage(&cmdl); 
     else if (is_compile)
         compile();
-    else if (is_clear)
+    else if (is_clean)
         clean();
 
     zd_cmdl_destroy(&cmdl);

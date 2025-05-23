@@ -85,7 +85,7 @@ static char *test5(void)
 
 int main(int argc, char **argv)
 {
-    zd_cmdl_init(&cmdl);
+    zd_cmdl_init(&cmdl, true);
 
     g_argc = argc;
     g_argv = argv;

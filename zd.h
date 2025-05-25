@@ -137,7 +137,6 @@ ZD_DEF bool zd_wildcard_match(const char *str, const char *pattern);
 
 #endif /* ZD_WILDCARD */
 
-
 #ifdef ZD_LOG
 
 #define LOG_INFO  1
@@ -150,7 +149,6 @@ ZD_DEF void zd_log(int type, const char *fmt, ...);
 
 #endif /* ZD_LOG */
 
-
 #ifdef ZD_TEST
 
 struct zd_testsuite {
@@ -158,6 +156,8 @@ struct zd_testsuite {
     size_t fail_count;
     const char *name;
 };
+
+typedef struct zd_testsuite tsuite_t;
 
 static struct zd_testsuite *__suite_ptr__;
 
@@ -186,6 +186,9 @@ ZD_DEF void zd_fail(const char *msg);
 ZD_DEF void zd_run_test(struct zd_testsuite *suite, char *(*test)(void));
 ZD_DEF void zd_test_summary(struct zd_testsuite *suite);
 
+#define type_cast zd_type_cast
+#define assert zd_assert
+
 #endif /* ZD_TEST */
 
 #ifdef ZD_DS_DYNAMIC_BUFFER
@@ -194,6 +197,8 @@ struct zd_dynb {
     char *base;
     size_t capacity;
 };
+
+typedef struct zd_dynb dynb_t;
 
 ZD_DEF void zd_dynb_resize(struct zd_dynb *db, int size);
 ZD_DEF void zd_dynb_destroy(void *arg);
@@ -210,6 +215,8 @@ struct zd_dyna {
     size_t size;    /* size of each element */
     size_t pos;     /* iterator position */
 };
+
+typedef struct zd_dyna dyna_t;
 
 ZD_DEF void zd_dyna_init(struct zd_dyna *da, size_t size,
         void (*clear_item)(void *));
@@ -231,6 +238,8 @@ struct zd_string {
     size_t capacity;
 };
 
+typedef struct zd_string string_t;
+
 ZD_DEF void zd_string_append(struct zd_string *str, const char *fmt, ...);
 ZD_DEF struct zd_string zd_string_sub(const char *str, size_t src, size_t dest);
 ZD_DEF struct zd_string zd_string_rep(const char *str, size_t times);
@@ -248,6 +257,8 @@ struct zd_stack {
     size_t size;    /* size of each element */
     struct zd_dyna gc;
 };
+
+typedef struct zd_stack stack_t;
 
 ZD_DEF void zd_stack_init(struct zd_stack *stk, size_t size,
         void (*clear_item)(void *));
@@ -269,6 +280,8 @@ struct zd_trie_node {
     bool is_end;
     size_t count;
 };
+
+typedef struct zd_trie_node trie_node_t;
 
 ZD_DEF struct zd_trie_node *zd_trie_create_node(void);
 ZD_DEF void zd_trie_insert(struct zd_trie_node *root, const char *word);
@@ -292,6 +305,9 @@ struct zd_queue {
     struct zd_dyna gc;
     void (*clear_item)(void *);
 };
+
+typedef struct zd_queue_node queue_node_t;
+typedef struct zd_queue queue_t;
 
 #ifndef zd_queue_isempty
   #ifdef ZD_IMPLEMENTATION
@@ -338,6 +354,9 @@ struct zd_hash_tbl {
     void (*val_free)(void *); 
 };
 
+typedef struct zd_hash_node hash_node_t;
+typedef struct zd_hash_tbl hash_tbl_t;
+
 ZD_DEF void zd_htbl_init(struct zd_hash_tbl *htbl, size_t ksz, size_t vsz,
         bool (*key_cmp)(void *k1, void *k2), size_t (*hash_func)(void *),
         void (*key_free)(void *), void (*val_free)(void *));
@@ -372,6 +391,9 @@ struct zd_list {
     size_t size;    /* the size of each element */
     void (*clear_item)(void *);
 };
+
+typedef struct zd_list_node list_node_t;
+typedef struct zd_list list_t;
 
 ZD_DEF void zd_list_init(struct zd_list *list, size_t size,
         void (*clear_item)(void *));
@@ -425,6 +447,8 @@ struct zd_meta_dir {
     size_t count;
 };
 
+typedef struct zd_meta_file mf_t;
+typedef struct zd_meta_dir  md_t;
 
 ZD_DEF unsigned long long zd_fs_get_timestamp(const char *pathname);
 ZD_DEF char *zd_fs_getname(const char *pathname);
@@ -476,14 +500,17 @@ struct zd_cmdl {
     bool merge_opt;     /* merge options if they are the same */
 };
 
+typedef struct zd_cmdlopt cmdlopt_t;
+typedef struct zd_cmdl cmdl_t;
+
 ZD_DEF void zd_cmdl_init(struct zd_cmdl *cmdl, bool merge_opt);
 ZD_DEF void zd_cmdl_define(struct zd_cmdl *cmdl, int type,
         const char *lname, const char *sname, const char *description);
 ZD_DEF void zd_cmdl_build(struct zd_cmdl *cmdl, int argc, char **argv);
 ZD_DEF void zd_cmdl_usage(struct zd_cmdl *cmdl);
 ZD_DEF bool zd_cmdl_isuse(struct zd_cmdl *cmdl, const char *optname);
-ZD_DEF bool zd_cmdl_get_opt(struct zd_cmdl *cmdl, 
-        const char *optname, struct zd_cmdlopt *opt);
+ZD_DEF struct zd_cmdlopt *zd_cmdl_get_opt(struct zd_cmdl *cmdl, 
+        const char *optname);
 ZD_DEF void zd_cmdl_destroy(void *arg);
 ZD_DEF void zd_cmdl_dump(struct zd_cmdl *cmdl);
 ZD_DEF void zd_cmdlopt_init(struct zd_cmdlopt *opt);
@@ -523,6 +550,9 @@ struct zd_builder {
 #endif
 };
 
+typedef struct zd_cmd cmd_t;
+typedef sturct zd_builder builder_t;
+
 static void _cmd_append_arg(struct zd_cmd *cmd, ...);
 ZD_DEF void zd_cmd_init(struct zd_cmd *cmd);
 ZD_DEF void zd_cmd_print(struct zd_cmd *cmd);
@@ -538,11 +568,10 @@ ZD_DEF void zd_cmd_destroy(struct zd_cmd *cmd);
   #endif /* ZD_IMPLEMENTATION */
 #endif /* zd_cmd_append_arg */
 
-#define BUILD_SRC "dy.c"
-#define BUILD_EXE "dy"
+#define BUILD_SRC "build.c"
+#define BUILD_EXE "build"
 
 static void _build_append_cmd(struct zd_builder *builder, ...);
-ZD_DEF void zd_build_self(int argc, char **argv);
 ZD_DEF void zd_build_init(struct zd_builder *builder);
 ZD_DEF void zd_build_destroy(struct zd_builder *builder);
 ZD_DEF void zd_build_print(struct zd_builder *builder);
@@ -640,6 +669,9 @@ struct zd_colib {
     struct zd_stack back_stk;   /* record the back address to resume() invoke */
     struct zd_coctx *cur_coctx;
 };
+
+typedef struct zd_coctx coctx_t;
+typedef struct zd_colib colib_t;
 
 static void __attribute__((naked)) zd_coctx_swap(struct zd_coctx *cur,
         struct zd_coctx *next);
@@ -870,13 +902,13 @@ ZD_DEF void zd_cmdl_build(struct zd_cmdl *cmdl, int argc, char **argv)
             one_dash = true;
 
         const char *p1 = _skip_dash(argv[pos]);
-        const char *p2 = strchr(p1, '=');
-        bool has_equal = (p2 != NULL);
-
         if (!p1) {
             pos++;
             continue;
         }
+        const char *p2 = strchr(p1, '=');
+        bool has_equal = (p2 != NULL);
+
 
         struct zd_cmdlopt opt = {0};
         zd_cmdlopt_init(&opt);
@@ -1048,26 +1080,26 @@ ZD_DEF bool zd_cmdl_isuse(struct zd_cmdl *cmdl, const char *optname)
     return false;
 }
 
-ZD_DEF bool zd_cmdl_get_opt(struct zd_cmdl *cmdl, 
-        const char *optname, struct zd_cmdlopt *opt)
+ZD_DEF struct zd_cmdlopt *zd_cmdl_get_opt(struct zd_cmdl *cmdl, 
+        const char *optname)
 {
     if (!optname)
         return false;
 
     for (size_t i = 0; i < cmdl->opts.count; i++) {
-        struct zd_cmdlopt *saved_opt = zd_dyna_get(&cmdl->opts, i);
-        if ((saved_opt->name.base &&
-             strcmp(saved_opt->name.base, optname) == 0) ||
-            (saved_opt->lname.base &&
-             strcmp(saved_opt->lname.base, optname) == 0) ||
-            (saved_opt->sname.base &&
-             strcmp(saved_opt->sname.base, optname) == 0)) {
-            *opt = *saved_opt;
-            return true;
+        struct zd_cmdlopt *opt = zd_dyna_get(&cmdl->opts, i);
+        if (opt->is_defined) {
+            struct zd_cmdlopt *rule = _get_rule(cmdl, opt->name.base, NULL);
+            if ((rule->lname.base && strcmp(rule->lname.base, optname) == 0) ||
+                (rule->sname.base && strcmp(rule->sname.base, optname) == 0))
+                return opt;
+        } else {
+            if (opt->name.base && strcmp(opt->name.base, optname) == 0)
+                return opt;
         }
     }
 
-    return false;
+    return NULL;
 }
 
 ZD_DEF void zd_cmdl_destroy(void *arg)
@@ -2498,42 +2530,6 @@ ZD_DEF int zd_cmd_run(struct zd_cmd *cmd)
 
     zd_string_destroy(&cmd_string);
     return 0;
-}
-
-ZD_DEF void zd_build_self(int argc, char **argv)
-{
-    zd_fs_copy(BUILD_SRC, "build_src.bak", false);
-    zd_fs_copy(BUILD_EXE, "build_exe.bak", true);
-
-    unsigned long long src_ts = zd_fs_get_timestamp(BUILD_SRC);
-    unsigned long long exe_ts = zd_fs_get_timestamp(BUILD_EXE);
-    unsigned long long hdr_ts = zd_fs_get_timestamp("zd.h");
-
-    if (exe_ts < src_ts || exe_ts < hdr_ts) {
-        zd_log(LOG_INFO, "UPDATE SELF ......");
-        /* update self */
-        struct zd_cmd cmd = {0};
-        zd_cmd_init(&cmd);
-        zd_cmd_append_arg(&cmd, "gcc", "-o", BUILD_EXE, BUILD_SRC);
-        zd_cmd_append_arg(&cmd, "&&");
-        for (int i = 0; i < argc; i++)
-            zd_cmd_append_arg(&cmd, argv[i]);
-
-        zd_cmd_run(&cmd);
-        zd_cmd_destroy(&cmd);
-
-        if (zd_fs_typeof(BUILD_SRC) == FT_NOET)
-            zd_fs_move("build_src.bak", BUILD_SRC, false);
-        if (zd_fs_typeof(BUILD_EXE) == FT_NOET)
-            zd_fs_move("build_exe.bak", BUILD_EXE, true);
-        zd_fs_remove("build_src.bak");
-        zd_fs_remove("build_exe.bak");
-
-        exit(EXIT_SUCCESS);
-    }
-
-    zd_fs_remove("build_src.bak");
-    zd_fs_remove("build_exe.bak");
 }
 
 ZD_DEF void zd_build_init(struct zd_builder *builder)

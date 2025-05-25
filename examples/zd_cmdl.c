@@ -109,7 +109,7 @@ static void define_rule(struct zd_cmdl *cmdl)
 
 int main(int argc, char **argv)
 {
-    struct zd_cmdl cmdl = {0};
+    cmdl_t cmdl = {0};
     zd_cmdl_init(&cmdl, true);
 
     define_rule(&cmdl);

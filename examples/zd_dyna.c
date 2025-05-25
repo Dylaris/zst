@@ -15,7 +15,7 @@ static void clear_item(void *arg)
 
 int main(void)
 {
-    struct zd_dyna fruits = {0};
+    dyna_t fruits = {0};
     zd_dyna_init(&fruits, sizeof(struct fruit), clear_item);
 
     struct fruit apple  = { .name = "apple",  .price = 2 };

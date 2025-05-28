@@ -1,7 +1,5 @@
 #define ZD_IMPLEMENTATION
 #define ZD_BUILD
-#define ZD_WILDCARD
-#define ZD_FS
 #include "zd.h"
 
 void compile(void)
@@ -26,7 +24,6 @@ void compile(void)
         zd_cmd_append_arg(&cmd, "-Wall", "-Wextra");
         zd_cmd_append_arg(&cmd, "-I", "../");
         zd_cmd_append_arg(&cmd, "-o", exe.base, src.base);
-        zd_cmd_append_arg(&cmd, "-lm");
         zd_build_append_cmd(&builder, &cmd);
 
         zd_string_destroy(&src);
@@ -64,9 +61,8 @@ void clean(void)
 
 void define_rule(struct zd_cmdl *cmdl)
 {
-    zd_cmdl_define(cmdl, OPTT_NO_ARG, "help", "h", "print help information");
-    zd_cmdl_define(cmdl, OPTT_NO_ARG, "compile", "c", "compile all files");
-    zd_cmdl_define(cmdl, OPTT_NO_ARG, "clean", "cl", "clean the generated files");
+    zd_cmdl_define(cmdl, OPTT_NO_ARG, "compile", "comp", "compile all files");
+    zd_cmdl_define(cmdl, OPTT_NO_ARG, "clean", NULL, "clean the generated files");
 }
 
 int main(int argc, char **argv)
@@ -78,15 +74,14 @@ int main(int argc, char **argv)
 
     zd_cmdl_build(&cmdl, argc, argv);
 
-    bool is_help = zd_cmdl_isuse(&cmdl, "help");
-    bool is_clean = zd_cmdl_isuse(&cmdl, "clean");
+    zd_cmdl_usage(&cmdl);
+
+    bool is_clear = zd_cmdl_isuse(&cmdl, "clean");
     bool is_compile = zd_cmdl_isuse(&cmdl, "compile");
 
-    if (is_help)
-        zd_cmdl_usage(&cmdl); 
-    else if (is_compile)
+    if (is_compile)
         compile();
-    else if (is_clean)
+    else if (is_clear)
         clean();
 
     zd_cmdl_destroy(&cmdl);

@@ -5,19 +5,19 @@
 
 int main(void)
 {
-    struct zd_string greet = {0};
-    zd_string_append(&greet, "USE ");
-    zd_string_append(&greet, "zd.h ");
-    zd_string_append(&greet, "RIGHT NOW !!!");
+    string_t greet = {0};
+    string_append(&greet, "USE ");
+    string_append(&greet, "zd.h ");
+    string_append(&greet, "RIGHT NOW !!!");
 
-    struct zd_string xyp = {0};
-    zd_string_append(&xyp, "FUCK !!! XYP !!!");
+    string_t xyp = {0};
+    string_append(&xyp, "FUCK !!! XYP !!!");
 
-    zd_log(LOG_GOOD,  greet.base);
-    zd_log(LOG_ERROR, xyp.base);
+    log(LOG_GOOD,  greet.base);
+    log(LOG_ERROR, xyp.base);
 
-    zd_string_destroy(&greet);
-    zd_string_destroy(&xyp);
+    string_destroy(&greet);
+    string_destroy(&xyp);
 
     return 0;
 }

@@ -5,11 +5,11 @@
 
 void print_colorful_text(void)
 {
-    struct zd_meta_file mf = {0};
+    mf_t mf = {0};
 
-    zd_fs_loadf("./zd_print.c", &mf, false);
-    zd_print(OPT_COLOR, "%s", mf.content);
-    zd_fs_destroy_mf(&mf);
+    fs_loadf("./print.c", &mf, false);
+    print(OPT_COLOR, "%s", mf.content);
+    fs_destroy_mf(&mf);
 }
 
 void print_static_array(void)
@@ -19,7 +19,7 @@ void print_static_array(void)
         { "hello", "world" },
         { "hello", "world" }
     };
-    zd_print(OPT_S_TBL, static_table, 3, 2);
+    print(OPT_S_TBL, static_table, 3, 2);
 }
 
 void print_dynamic_array(void)
@@ -33,7 +33,7 @@ void print_dynamic_array(void)
         dynamic_table[i][1] = "world";
     }
 
-    zd_print(OPT_D_TBL, dynamic_table, 3, 2);
+    print(OPT_D_TBL, dynamic_table, 3, 2);
 
     for (int i = 0; i < 3; i++)
         free(dynamic_table[i]);

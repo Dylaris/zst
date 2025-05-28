@@ -15,37 +15,37 @@ static void clear_item(void *arg)
 
 int main(void)
 {
-    struct zd_list fruits = {0};
-    zd_list_init(&fruits, sizeof(struct fruit), clear_item);
+    list_t fruits = {0};
+    list_init(&fruits, sizeof(struct fruit), clear_item);
 
     struct fruit apple  = { .name = "apple",  .price = 2 };
     struct fruit orange = { .name = "orange", .price = 1 };
     struct fruit banana = { .name = "banana", .price = 5 };
     struct fruit grape  = { .name = "grape",  .price = 7 };
 
-    zd_list_append(&fruits, &apple);
-    zd_list_append(&fruits, &orange);
-    zd_list_append(&fruits, &banana);
-    zd_list_append(&fruits, &grape);
+    list_append(&fruits, &apple);
+    list_append(&fruits, &orange);
+    list_append(&fruits, &banana);
+    list_append(&fruits, &grape);
 
     printf("normal order\n\n");
     for (size_t i = 0; i < fruits.count; i++) {
-        struct fruit *item = zd_list_get(&fruits, i);
+        struct fruit *item = list_get(&fruits, i);
         printf("[%s] ($ %zu)\n", item->name, item->price);
     }
 
-    zd_list_remove(&fruits, 3);
-    zd_list_remove(&fruits, 0);
+    list_remove(&fruits, 3);
+    list_remove(&fruits, 0);
 
-    zd_list_reverse(&fruits);
+    list_reverse(&fruits);
 
     printf("reverse order\n\n");
     for (size_t i = 0; i < fruits.count; i++) {
-        struct fruit *item = zd_list_get(&fruits, i);
+        struct fruit *item = list_get(&fruits, i);
         printf("[%s] ($ %zu)\n", item->name, item->price);
     }
 
-    zd_list_destroy(&fruits);
+    list_destroy(&fruits);
 
     return 0;
 }

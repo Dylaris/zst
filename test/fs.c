@@ -5,7 +5,7 @@
 
 char *test1(void)
 {
-    char buf[MAX_PATH_SIZE];
+    char buf[FS_MAX_PATH_SIZE];
 
     zd_assert(zd_fs_pwd(buf, sizeof(buf)) == true, NULL);
 #if defined(_WIN32)
@@ -19,7 +19,7 @@ char *test1(void)
 
 char *test2(void)
 {
-    char buf[MAX_PATH_SIZE];
+    char buf[FS_MAX_PATH_SIZE];
 
     zd_assert(zd_fs_cd(NULL) == false, NULL);
 
@@ -63,7 +63,7 @@ char *test2(void)
 char *test3(void)
 {
     /* go back to test folder */
-    char buf[MAX_PATH_SIZE];
+    char buf[FS_MAX_PATH_SIZE];
 
 #if defined(_WIN32)
     zd_assert(zd_fs_cd("D:\\Code\\c\\Project\\zd\\test") == true, NULL);
@@ -74,8 +74,8 @@ char *test3(void)
     zd_assert(zd_fs_typeof("..") == FT_DIR, NULL);
     zd_assert(zd_fs_typeof("..\\examples") == FT_DIR, NULL);
     zd_assert(zd_fs_typeof("D:\\Code\\c\\Project\\zd") == FT_DIR, NULL);
-    zd_assert(zd_fs_typeof("zd_fs.c") == FT_REG, NULL);
-    zd_assert(zd_fs_typeof("..\\test\\zd_fs.c") == FT_REG, NULL);
+    zd_assert(zd_fs_typeof("fs.c") == FT_REG, NULL);
+    zd_assert(zd_fs_typeof("..\\test\\fs.c") == FT_REG, NULL);
     zd_assert(zd_fs_typeof("zdzdzd") == FT_NOET, NULL);
 #else
     zd_assert(zd_fs_cd("/home/dylaris/fun/zd/test") == true, NULL);
@@ -86,8 +86,8 @@ char *test3(void)
     zd_assert(zd_fs_typeof("..") == FT_DIR, NULL);
     zd_assert(zd_fs_typeof("../examples") == FT_DIR, NULL);
     zd_assert(zd_fs_typeof("/home/dylaris") == FT_DIR, NULL);
-    zd_assert(zd_fs_typeof("zd_fs.c") == FT_REG, NULL);
-    zd_assert(zd_fs_typeof("../test/zd_fs.c") == FT_REG, NULL);
+    zd_assert(zd_fs_typeof("fs.c") == FT_REG, NULL);
+    zd_assert(zd_fs_typeof("../test/fs.c") == FT_REG, NULL);
     zd_assert(zd_fs_typeof("zdzdzd") == FT_NOET, NULL);
 #endif
 
@@ -100,14 +100,14 @@ char *test4(void)
 
     zd_assert(zd_fs_loadf("zdzdzd.c", &mf, false) == false, NULL);
 
-    zd_assert(zd_fs_loadf("zd_string.c", &mf, false) == true, NULL);
-    zd_assert(strcmp(mf.name, "zd_string.c") == 0, NULL);
+    zd_assert(zd_fs_loadf("string.c", &mf, false) == true, NULL);
+    zd_assert(strcmp(mf.name, "string.c") == 0, NULL);
     zd_assert(mf.type == FT_REG, NULL);
 #if defined(_WIN32)
     zd_assert(mf.size == 1124, NULL);
     zd_assert(mf.line == 40, NULL);
 #else
-    zd_assert(mf.size == 1089, NULL);
+    zd_assert(mf.size == 1093, NULL);
     zd_assert(mf.line == 40, NULL);
 #endif
 
@@ -131,7 +131,7 @@ char *test5(void)
 
     zd_fs_destroy_md(&md);
 
-    zd_assert(zd_fs_loadd("zd_fs.c", &md) == false, NULL);
+    zd_assert(zd_fs_loadd("fs.c", &md) == false, NULL);
     zd_fs_destroy_md(&md);
 
     zd_assert(zd_fs_loadd("..", &md) == true, NULL);
@@ -180,7 +180,7 @@ char *test6(void)
     zd_assert(strcmp(ptr, "") == 0, NULL);
 
     ptr = zd_fs_getname("D:\\Code\\c\\Project\\zd\\zd_fs.c");
-    zd_assert(strcmp(ptr, "zd_fs.c") == 0, NULL);
+    zd_assert(strcmp(ptr, "fs.c") == 0, NULL);
 #else
     ptr = zd_fs_getname("/home/dylaris/fun/zd");
     zd_assert(strcmp(ptr, "zd") == 0, NULL);
@@ -188,12 +188,12 @@ char *test6(void)
     ptr = zd_fs_getname("/home/dylaris/fun/zd/");
     zd_assert(strcmp(ptr, "") == 0, NULL);
 
-    ptr = zd_fs_getname("/home/dylaris/fun/zd/zd_fs.c");
-    zd_assert(strcmp(ptr, "zd_fs.c") == 0, NULL);
+    ptr = zd_fs_getname("/home/dylaris/fun/zd/fs.c");
+    zd_assert(strcmp(ptr, "fs.c") == 0, NULL);
 #endif
 
-    ptr = zd_fs_getname("zd_fs.c");
-    zd_assert(strcmp(ptr, "zd_fs.c") == 0, NULL);
+    ptr = zd_fs_getname("fs.c");
+    zd_assert(strcmp(ptr, "fs.c") == 0, NULL);
 
     return "test zd_fs_getname done!";
 }
@@ -211,7 +211,7 @@ char *test7(void)
     zd_assert(zd_fs_touch("../t2") == true, NULL);
     zd_assert(zd_fs_touch("/home/dylaris/fun/zd/test/t3") == true, NULL);
 #endif
-    zd_assert(zd_fs_touch("zd_test.c") == true, NULL);
+    zd_assert(zd_fs_touch("test.c") == true, NULL);
 
     return "test zd_fs_touch done!";
 }
@@ -268,7 +268,7 @@ char *test9(void)
 char *test10(void)
 {
     zd_assert(zd_fs_copy("t0", "t1", false) == false, NULL);
-    zd_assert(zd_fs_copy("zd_test.c", "t1", false) == true, NULL);
+    zd_assert(zd_fs_copy("test.c", "t1", false) == true, NULL);
     zd_assert(zd_fs_copy("t1", "t1", false) == true, NULL);
     zd_assert(zd_fs_mkdir("d1") == true, NULL);
 #if defined(_WIN32)
@@ -294,7 +294,7 @@ char *test10(void)
 char *test11(void)
 {
     zd_assert(zd_fs_move("t0", "t1", false) == false, NULL);
-    zd_assert(zd_fs_copy("zd_test.c", "t1", false) == true, NULL);
+    zd_assert(zd_fs_copy("test.c", "t1", false) == true, NULL);
     zd_assert(zd_fs_mkdir("d1") == true, NULL);
     zd_assert(zd_fs_move("t1", "d1", false) == true, NULL);
 #if defined(_WIN32)

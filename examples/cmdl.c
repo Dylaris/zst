@@ -96,51 +96,51 @@
 
 /* ./zd_cmdl nothing here -Wall -Wextra -std=c11 -I ../src/ -I./ -o a a.c b.c -L. -L ../lib/ -l nil -lm */
 
-static void define_rule(struct zd_cmdl *cmdl)
+static void define_rule(cmdl_t *cmdl)
 {
-    zd_cmdl_define(cmdl, OPTT_NO_ARG, NULL, "Wall", NULL);
-    zd_cmdl_define(cmdl, OPTT_NO_ARG, NULL, "Wextra", NULL);
-    zd_cmdl_define(cmdl, OPTT_SINGLE_ARG, NULL, "std", NULL);
-    zd_cmdl_define(cmdl, OPTT_SINGLE_ARG, NULL, "I", NULL);
-    zd_cmdl_define(cmdl, OPTT_SINGLE_ARG, NULL, "o", NULL);
-    zd_cmdl_define(cmdl, OPTT_SINGLE_ARG, NULL, "L", NULL);
-    zd_cmdl_define(cmdl, OPTT_SINGLE_ARG, NULL, "l", NULL);
+    cmdl_define(cmdl, OPTT_NO_ARG, NULL, "Wall", NULL);
+    cmdl_define(cmdl, OPTT_NO_ARG, NULL, "Wextra", NULL);
+    cmdl_define(cmdl, OPTT_SINGLE_ARG, NULL, "std", NULL);
+    cmdl_define(cmdl, OPTT_SINGLE_ARG, NULL, "I", NULL);
+    cmdl_define(cmdl, OPTT_SINGLE_ARG, NULL, "o", NULL);
+    cmdl_define(cmdl, OPTT_SINGLE_ARG, NULL, "L", NULL);
+    cmdl_define(cmdl, OPTT_SINGLE_ARG, NULL, "l", NULL);
 }
 
 int main(int argc, char **argv)
 {
     cmdl_t cmdl = {0};
-    zd_cmdl_init(&cmdl, true);
+    cmdl_init(&cmdl, true);
 
     define_rule(&cmdl);
 
-    zd_cmdl_build(&cmdl, argc, argv);
+    cmdl_build(&cmdl, argc, argv);
 
-    zd_cmdl_dump(&cmdl);
+    cmdl_dump(&cmdl);
 #if 0
     /* get the positional args */
-    struct zd_dyna *pargs = &cmdl.pargs;
-    struct zd_string *arg_iter;
-    while ((arg_iter = zd_dyna_next(pargs)) != NULL)
+    struct dyna *pargs = &cmdl.pargs;
+    struct string *arg_iter;
+    while ((arg_iter = dyna_next(pargs)) != NULL)
         printf("parg: %s\n", arg_iter->base);
 
     /* get the options (name, values, pargs) */
-    struct zd_dyna *opts = &cmdl.opts;
-    struct zd_cmdlopt *opt_iter;
-    struct zd_string *val_iter;
-    struct zd_string *parg_iter;
-    while ((opt_iter = zd_dyna_next(opts)) != NULL) {
+    struct dyna *opts = &cmdl.opts;
+    struct cmdlopt *opt_iter;
+    struct string *val_iter;
+    struct string *parg_iter;
+    while ((opt_iter = dyna_next(opts)) != NULL) {
         printf("option: %s\n", opt_iter->name.base);
         printf("   vals:\n");
-        while ((val_iter = zd_dyna_next(&opt_iter->vals)) != NULL)
+        while ((val_iter = dyna_next(&opt_iter->vals)) != NULL)
             printf("        %s\n", val_iter->base);
         printf("   pargs:\n");
-        while ((parg_iter = zd_dyna_next(&opt_iter->pargs)) != NULL)
+        while ((parg_iter = dyna_next(&opt_iter->pargs)) != NULL)
             printf("        %s\n", parg_iter->base);
     }
 #endif
 
-    zd_cmdl_destroy(&cmdl);
+    cmdl_destroy(&cmdl);
 
     return 0;
 }

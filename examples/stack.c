@@ -15,32 +15,32 @@ static void clear_item(void *arg)
 
 int main(void)
 {
-    struct zd_stack fruits = {0};
-    zd_stack_init(&fruits, sizeof(struct fruit), clear_item);
+    stack_t fruits = {0};
+    stack_init(&fruits, sizeof(struct fruit), clear_item);
 
     struct fruit apple  = { .name = "apple",  .price = 2 };
     struct fruit orange = { .name = "orange", .price = 1 };
     struct fruit banana = { .name = "banana", .price = 5 };
     struct fruit grape  = { .name = "grape",  .price = 7 };
 
-    zd_stack_push(&fruits, &apple);
-    zd_stack_push(&fruits, &orange);
-    zd_stack_push(&fruits, &banana);
-    zd_stack_push(&fruits, &grape);
+    stack_push(&fruits, &apple);
+    stack_push(&fruits, &orange);
+    stack_push(&fruits, &banana);
+    stack_push(&fruits, &grape);
 
-    struct fruit *item = zd_stack_top(&fruits);
+    struct fruit *item = stack_top(&fruits);
     printf("stack top before pop: [%s] ($ %zu)\n", item->name, item->price);
 
-    while ((item = zd_stack_pop(&fruits)) != NULL)
+    while ((item = stack_pop(&fruits)) != NULL)
         printf("[%s] ($ %zu)\n", item->name, item->price);
 
-    zd_stack_push(&fruits, &banana);
-    zd_stack_push(&fruits, &grape);
+    stack_push(&fruits, &banana);
+    stack_push(&fruits, &grape);
 
-    item = zd_stack_top(&fruits);
+    item = stack_top(&fruits);
     printf("stack top after pop: [%s] ($ %zu)\n", item->name, item->price);
 
-    zd_stack_destroy(&fruits);
+    stack_destroy(&fruits);
 
     return 0;
 }

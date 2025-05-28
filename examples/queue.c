@@ -1,5 +1,5 @@
 #define ZD_IMPLEMENTATION
-#define ZD_DS_DYNAMIC_ARRAY
+#define ZD_DS_QUEUE
 #include "zd.h"
 
 struct fruit {
@@ -15,32 +15,24 @@ static void clear_item(void *arg)
 
 int main(void)
 {
-    dyna_t fruits = {0};
-    zd_dyna_init(&fruits, sizeof(struct fruit), clear_item);
+    queue_t fruits = {0};
+    queue_init(&fruits, sizeof(struct fruit), clear_item);
 
     struct fruit apple  = { .name = "apple",  .price = 2 };
     struct fruit orange = { .name = "orange", .price = 1 };
     struct fruit banana = { .name = "banana", .price = 5 };
     struct fruit grape  = { .name = "grape",  .price = 7 };
 
-    zd_dyna_append(&fruits, &apple);
-    zd_dyna_append(&fruits, &orange);
-    zd_dyna_append(&fruits, &banana);
-    zd_dyna_insert(&fruits, 0, &grape);
+    queue_push(&fruits, &apple);
+    queue_push(&fruits, &orange);
+    queue_push(&fruits, &banana);
+    queue_push(&fruits, &grape);
 
     struct fruit *iter = NULL;
-    printf("before remove\n");
-    while ((iter = zd_dyna_next(&fruits)) != NULL)
+    while ((iter = queue_pop(&fruits)) != NULL)
         printf("[%s] ($ %zu)\n", iter->name, iter->price);
 
-    zd_dyna_remove(&fruits, 1);
-    zd_dyna_remove(&fruits, 2);
-
-    printf("\nafter remove\n");
-    while ((iter = zd_dyna_next(&fruits)) != NULL)
-        printf("[%s] ($ %zu)\n", iter->name, iter->price);
-
-    zd_dyna_destroy(&fruits);
+    queue_destroy(&fruits);
 
     return 0;
 }

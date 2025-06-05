@@ -7,58 +7,39 @@ void compile(void)
     builder_t builder = {0};
     build_init(&builder);
 
-    md_t md = {0};
-    fs_loadd(".", &md);
+    dyna_t files = fs_match(".", "*.c");
 
-    for (size_t i = 0; i < md.f_cnt; i++) {
-        string_t src = {0}, exe = {0};
-        printf("file: %s\n", md.files[i]);
-        if (!wc_match(md.files[i], "*.c"))
-            continue;
-
-        string_append(&src, md.files[i]);
-        exe = string_sub(src.base, 0, strlen(md.files[i]) - 2);
+    for (size_t i = 0; i < files.count; i++) {
+        string_t *src = (string_t *) dyna_get(&files, i);
+#ifdef _WIN32
+        string_t exe = string_replace(src->base, ".c", ".exe");
+#else
+        string_t exe = string_replace(src->base, ".c", "");
+#endif
 
         cmd_t cmd = {0};
         cmd_init(&cmd);
         cmd_append_arg(&cmd, "gcc");
         cmd_append_arg(&cmd, "-Wall", "-Wextra");
         cmd_append_arg(&cmd, "-I", "../");
-        cmd_append_arg(&cmd, "-o", exe.base, src.base);
+        cmd_append_arg(&cmd, "-o", exe.base, src->base);
         cmd_append_arg(&cmd, "-lm");
         build_append_cmd(&builder, &cmd);
 
-        string_destroy(&src);
         string_destroy(&exe);
     }
 
     build_run_sync(&builder);
 
-    fs_destroy_md(&md);
+    dyna_destroy(&files);
     build_destroy(&builder);
 }
 
 void clean(void)
 {
-    md_t md = {0};
-    fs_loadd(".", &md);
-
-    for (size_t i = 0; i < md.f_cnt; i++) {
-        if (!wc_match(md.files[i], "*.c"))
-            continue;
-
-        string_t src = {0}, exe = {0};
-        string_append(&src, md.files[i]);
-        exe = string_sub(src.base, 0, strlen(md.files[i]) - 2);
-#ifdef _WIN32
-        string_append(&exe, ".exe");
-#endif
-
-        fs_remove(exe.base);
-
-        string_destroy(&src);
-        string_destroy(&exe);
-    }
+    dyna_t files = fs_find(".", FA_EXEC);
+    fs_remove_all(&files);
+    dyna_destroy(&files);
 }
 
 void define_rule(cmdl_t *cmdl)
@@ -70,6 +51,8 @@ void define_rule(cmdl_t *cmdl)
 
 int main(int argc, char **argv)
 {
+    build_update_self("gcc", argc, argv, "-I", "../");
+
     cmdl_t cmdl = {0};
     cmdl_init(&cmdl, true);
 

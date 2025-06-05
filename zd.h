@@ -2,7 +2,7 @@
  * Author: Dylaris
  * Copyright (c) 2025
  * License: MIT
- * Date: 2025-05-28
+ * Date: 2025-06-05
  *
  * All rights reserved
  */
@@ -21,7 +21,6 @@
  * + ZD_LOG               Simple logging for information
  * + ZD_FS                Some operations about file and directory
  * + ZD_WILDCARD          Wildcard ( '*', '?' )
- *   ZD_DYNASM            A simple way to use 'dynasm' (A stupid thing :->)
  *   ZD_COROUTINE         A simple coroutine implementation (based on GNU GCC)
  * + ZD_COMMAND_LINE      Some operations about command line (option, ...)
  * + ZD_DS_DYNAMIC_ARRAY  Dynamic array
@@ -32,7 +31,6 @@
  * + ZD_DS_TRIE           Trie or prefix tree
  * + ZD_DS_QUEUE          Queue (based on linked-list)
  * + ZD_DS_LINKED_LIST    Linked list
- *
  *
  * !!! NOTE !!!
  *
@@ -77,6 +75,18 @@
   #endif
   #ifndef ZD_DS_STACK
     #define ZD_DS_STACK
+  #endif
+#endif
+
+#ifdef ZD_FS
+  #ifndef ZD_DS_DYNAMIC_ARRAY
+    #define ZD_DS_DYNAMIC_ARRAY
+  #endif
+  #ifndef ZD_WILDCARD
+    #define ZD_WILDCARD
+  #endif
+  #ifndef ZD_DS_STRING
+    #define ZD_DS_STRING
   #endif
 #endif
 
@@ -263,14 +273,17 @@ struct zd_string {
 
 ZD_DEF void zd_string_append(struct zd_string *str, const char *fmt, ...);
 ZD_DEF struct zd_string zd_string_sub(const char *str, size_t src, size_t dest);
-ZD_DEF struct zd_string zd_string_rep(const char *str, size_t times);
+ZD_DEF struct zd_string zd_string_repeat(const char *str, size_t times);
+ZD_DEF struct zd_string zd_string_replace(const char *str,
+        const char *s_old, const char *s_new);
 ZD_DEF void zd_string_destroy(void *arg);
 
 typedef struct zd_string string_t;
 
 #define string_append   zd_string_append
 #define string_sub      zd_string_sub
-#define string_rep      zd_string_rep
+#define string_repeat   zd_string_repeat
+#define string_replace  zd_string_replace
 #define string_destroy  zd_string_destroy
 
 #endif /* ZD_DS_STRING */
@@ -474,12 +487,14 @@ typedef struct zd_list list_t;
 
 #ifdef ZD_FS
 
-#if defined(_WIN32)
+#ifdef _WIN32
   #include <windows.h>
   #include <direct.h>
   #include <fcntl.h>
   #include <errno.h>
-#elif defined(__linux__)
+  #include <io.h>
+  #include <sys/stat.h>
+#else
   #include <unistd.h>
   #include <dirent.h>
   #include <fcntl.h>
@@ -493,12 +508,18 @@ typedef struct zd_list list_t;
 #define FT_REG  1    /* regular file */
 #define FT_DIR  2    /* directory */
 
+#define FA_NONE  0
+#define FA_EXEC  (1 << 0)
+#define FA_READ  (1 << 1)
+#define FA_WRITE (1 << 2)
+
 #define FS_MAX_PATH_SIZE 1024
 
 struct zd_meta_file {
     char *name;
     char *content;
     int type;
+    int attr;
     size_t size;
     size_t line;
 };
@@ -513,7 +534,7 @@ struct zd_meta_dir {
 };
 
 ZD_DEF unsigned long long zd_fs_get_timestamp(const char *pathname);
-ZD_DEF char *zd_fs_getname(const char *pathname);
+ZD_DEF char *zd_fs_get_name(const char *pathname);
 ZD_DEF bool zd_fs_pwd(char *buf, size_t buf_size);
 ZD_DEF bool zd_fs_cd(const char *pathname);
 ZD_DEF bool zd_fs_move(const char *src, const char *dest, bool is_binary);
@@ -521,6 +542,9 @@ ZD_DEF bool zd_fs_copy(const char *src, const char *dest, bool is_binary);
 ZD_DEF bool zd_fs_mkdir(const char *pathname);
 ZD_DEF bool zd_fs_touch(const char *pathname);
 ZD_DEF bool zd_fs_remove(const char *pathname);
+ZD_DEF bool zd_fs_remove_all(struct zd_dyna *items);
+ZD_DEF struct zd_dyna zd_fs_match(const char *pathname, const char *pattern);
+ZD_DEF struct zd_dyna zd_fs_find(const char *pathname, int attrs);
 ZD_DEF int zd_fs_typeof(const char *pathname);
 ZD_DEF bool zd_fs_loadf(const char *filename,
         struct zd_meta_file *res, bool is_binary);
@@ -529,12 +553,16 @@ ZD_DEF bool zd_fs_dumpf(const char *dest_file,
         const char *src_buf, size_t size, bool is_binary);
 ZD_DEF void zd_fs_destroy_mf(struct zd_meta_file *mf);
 ZD_DEF void zd_fs_destroy_md(struct zd_meta_dir *md);
+ZD_DEF int zd_fs_get_attr(const char *filename);
+ZD_DEF bool zd_fs_check_perm(const char *filename, int perm);
 
 typedef struct zd_meta_file mf_t;
 typedef struct zd_meta_dir  md_t;
 
 #define fs_get_timestamp    zd_fs_get_timestamp
-#define fs_getname          zd_fs_getname
+#define fs_get_name         zd_fs_get_name
+#define fs_get_attr         zd_fs_get_attr
+#define fs_check_perm       zd_fs_check_perm
 #define fs_pwd              zd_fs_pwd
 #define fs_cd               zd_fs_cd
 #define fs_move             zd_fs_move
@@ -542,6 +570,9 @@ typedef struct zd_meta_dir  md_t;
 #define fs_mkdir            zd_fs_mkdir
 #define fs_touch            zd_fs_touch
 #define fs_remove           zd_fs_remove
+#define fs_remove_all       zd_fs_remove_all
+#define fs_match            zd_fs_match
+#define fs_find             zd_fs_find
 #define fs_typeof           zd_fs_typeof
 #define fs_loadf            zd_fs_loadf
 #define fs_loadd            zd_fs_loadd
@@ -614,13 +645,6 @@ typedef struct zd_cmdl      cmdl_t;
 
 #ifdef ZD_BUILD
 
-#if defined(__linux__)
-  #include <unistd.h>
-  #include <sys/wait.h>
-#elif defined(_WIN32)
-#else
-#endif /* platform */
-
 #define EXEC_UNDO   0
 #define EXEC_OK     1
 #define EXEC_ERROR  2
@@ -651,10 +675,21 @@ ZD_DEF void zd_cmd_destroy(struct zd_cmd *cmd);
 #endif /* zd_cmd_append_arg */
 
 static void _build_append_cmd(struct zd_builder *builder, ...);
+static void _build_update_self(const char *cc, int argc,
+        char **argv, const char *source, ...);
 ZD_DEF void zd_build_init(struct zd_builder *builder);
 ZD_DEF void zd_build_destroy(struct zd_builder *builder);
 ZD_DEF void zd_build_print(struct zd_builder *builder);
 ZD_DEF int zd_build_run_sync(struct zd_builder *builder);
+
+#ifndef zd_build_update_self
+  #ifdef ZD_IMPLEMENTATION
+    #define zd_build_update_self(cc, argc, argv, ...) \
+        _build_update_self(cc, argc, argv, __FILE__, ##__VA_ARGS__, NULL)
+  #else
+    #define zd_build_update_self(builder, ...)
+  #endif /* ZD_IMPLEMENTATION */
+#endif /* zd_build_update_self */
 
 #ifndef zd_build_append_cmd
   #ifdef ZD_IMPLEMENTATION
@@ -678,28 +713,9 @@ typedef struct zd_builder   builder_t;
 #define build_destroy       zd_build_destroy
 #define build_print         zd_build_print
 #define build_run_sync      zd_build_run_sync
+#define build_update_self   zd_build_update_self
 
 #endif /* ZD_BUILD */
-
-#ifdef ZD_DYNASM
-
-#if defined(__linux__)
-  #include <unistd.h>
-  #include <fcntl.h>
-  #include <sys/wait.h>
-  #include <sys/mman.h>
-#elif defined(_WIN32)
-#else
-#endif
-
-#define ZD_PAGE_SIZE 4096
-#define ZD_ASSEMBLER "fasm"
-
-ZD_DEF void *zd_dynasm_map(size_t size);
-ZD_DEF void *zd_dynasm_do(char *code, void *addr);
-ZD_DEF void zd_dynasm_free(void *addr);
-
-#endif /* ZD_DYNASM */
 
 #ifdef ZD_PRINT
 
@@ -850,7 +866,7 @@ static inline void _optt_to_string(int type, char *buf, size_t n)
 
 ZD_DEF void zd_cmdlopt_dump(struct zd_cmdlopt *opt, size_t level)
 {
-    struct zd_string indent = zd_string_rep("\t", level);
+    struct zd_string indent = zd_string_repeat("\t", level);
 
     char type_str[20];
     _optt_to_string(opt->type, type_str, sizeof(type_str));
@@ -1269,7 +1285,7 @@ ZD_DEF unsigned long long zd_fs_get_timestamp(const char *pathname)
 {
     unsigned long long timestamp = 0;
 
-#if defined(_WIN32)
+#ifdef _WIN32
     HANDLE hFile = CreateFile(pathname, GENERIC_READ, FILE_SHARE_READ,
             NULL, OPEN_EXISTING, 0, NULL);
     if (hFile == INVALID_HANDLE_VALUE) {
@@ -1289,7 +1305,7 @@ ZD_DEF unsigned long long zd_fs_get_timestamp(const char *pathname)
         fprintf(stderr, "ERROR: failed to get file time\n");
     }
     CloseHandle(hFile);
-#elif defined(__linux__)
+#else
     struct stat sb;
     if (stat(pathname, &sb) == -1) {
         fprintf(stderr, "ERROR: unable to get file stats");
@@ -1297,25 +1313,22 @@ ZD_DEF unsigned long long zd_fs_get_timestamp(const char *pathname)
     }
 
     timestamp = (unsigned long long) sb.st_mtime;
-#else
-    NOT_SUPPORT("zd_fs_get_timestamp");
 #endif /* platform */
 
     return timestamp;
 }
 
-ZD_DEF char *zd_fs_getname(const char *pathname)
+ZD_DEF char *zd_fs_get_name(const char *pathname)
 {
     if (!pathname)
         return NULL;
 
-#if defined(_WIN32)
+#ifdef _WIN32
     char *filename = strrchr(pathname, '\\');
-#elif defined(__linux__)
-    char *filename = strrchr(pathname, '/');
 #else
-    NOT_SUPPORT("zd_fs_getname");
-#endif
+    char *filename = strrchr(pathname, '/');
+#endif /* platform */
+
     if (filename)
         return filename + 1;
     return (char *) pathname;
@@ -1326,18 +1339,16 @@ ZD_DEF bool zd_fs_pwd(char *buf, size_t buf_size)
     if (!buf || buf_size == 0)
         return false;
 
-#if defined(_WIN32)
+#ifdef _WIN32
     if (GetCurrentDirectory(buf_size, buf))
         return true;
     else
         return false;
-#elif defined(__linux__)
+#else
     if (getcwd(buf, buf_size))
         return true;
     else
         return false;
-#else
-    NOT_SUPPORT("zd_fs_pwd");
 #endif /* platform */
 }
 
@@ -1346,18 +1357,16 @@ ZD_DEF bool zd_fs_cd(const char *pathname)
     if (!pathname)
         return false;
 
-#if defined(_WIN32)
+#ifdef _WIN32
     if (SetCurrentDirectory(pathname))
         return true;
     else
         return false;
-#elif defined(__linux__)
+#else
     if (chdir(pathname) == 0)
         return true;
     else
         return false;
-#else
-    NOT_SUPPORT("zd_fd_cd");
 #endif /* platform */
 }
 
@@ -1369,6 +1378,16 @@ ZD_DEF bool zd_fs_move(const char *src, const char *dest, bool is_binary)
     if (!zd_fs_copy(src, dest, is_binary) || !zd_fs_remove(src))
         return false;
     return true;
+}
+
+ZD_DEF bool zd_fs_remove_all(struct zd_dyna *items)
+{
+    bool status = true;
+    for (size_t i = 0; i < items->count; i++) {
+        struct zd_string *file = zd_dyna_get(items, i);
+        status &= zd_fs_remove(file->base);
+    }
+    return status;
 }
 
 ZD_DEF bool zd_fs_copy(const char *src, const char *dest, bool is_binary)
@@ -1384,7 +1403,7 @@ ZD_DEF bool zd_fs_copy(const char *src, const char *dest, bool is_binary)
 
     if (zd_fs_typeof(dest) == FT_DIR)
         snprintf(dest_path, sizeof(dest_path), "%s/%s",
-                dest, zd_fs_getname(src));
+                dest, zd_fs_get_name(src));
     else
         snprintf(dest_path, sizeof(dest_path), "%s", dest);
 
@@ -1408,7 +1427,7 @@ ZD_DEF bool zd_fs_mkdir(const char *pathname)
     /* process step by step in the path string */
     char *dir = path_copy;
 
-#if defined(_WIN32)
+#ifdef _WIN32
     while ((dir = strchr(dir, '\\')) != NULL) {
         /* replace the path separator with a string terminator */
         *dir = '\0';
@@ -1421,7 +1440,7 @@ ZD_DEF bool zd_fs_mkdir(const char *pathname)
     }
     /* create final directory */
     return (_mkdir(pathname) == 0 || errno == EEXIST);
-#elif defined(__linux__)
+#else
     while ((dir = strchr(dir, '/')) != NULL) {
         /* replace the path separator with a string terminator */
         *dir = '\0';
@@ -1436,8 +1455,6 @@ ZD_DEF bool zd_fs_mkdir(const char *pathname)
     }
     return (mkdir(pathname, S_IRWXU | S_IRWXG | S_IRWXO) == 0 ||
             errno == EEXIST);
-#else
-        NOT_SUPPORT("zd_fs_mkdir");
 #endif /* platform */
 }
 
@@ -1452,7 +1469,7 @@ ZD_DEF bool zd_fs_touch(const char *pathname)
 
 static bool _remove_dir_recursively(const char *dirpath)
 {
-#if defined(_WIN32)
+#ifdef _WIN32
     WIN32_FIND_DATA find_file_data;
     HANDLE h_find = INVALID_HANDLE_VALUE;
 
@@ -1483,7 +1500,7 @@ static bool _remove_dir_recursively(const char *dirpath)
 
     FindClose(h_find);
     return RemoveDirectory(dirpath) != 0;
-#elif defined(__linux__)
+#else
     DIR *dp = opendir(dirpath);
     if (!dp)
         return false;
@@ -1515,9 +1532,67 @@ static bool _remove_dir_recursively(const char *dirpath)
     }
     closedir(dp);
     return rmdir(dirpath) == 0;
-#else
-    NOT_SUPPORT("zd_fs_remove");
 #endif /* platform */
+}
+
+ZD_DEF struct zd_dyna zd_fs_match(const char *pathname, const char *pattern)
+{
+    struct zd_dyna res = {0};
+    zd_dyna_init(&res, sizeof(struct zd_string), zd_string_destroy);
+
+    if (!pathname || !pattern) return res;
+
+    int type = zd_fs_typeof(pathname);
+    if (type == FT_DIR) {
+        struct zd_meta_dir md = {0};
+        zd_fs_loadd(pathname, &md);
+        for (size_t i = 0; i < md.f_cnt; i++) {
+            if (wc_match(md.files[i], pattern)) {
+                struct zd_string file = {0};
+                zd_string_append(&file, md.files[i]); 
+                zd_dyna_append(&res, &file);
+            }
+        }
+        zd_fs_destroy_md(&md);
+    } else if (type == FT_REG) {
+        if (wc_match(pathname, pattern)) {
+            struct zd_string file = {0};
+            zd_string_append(&file, pathname);
+            zd_dyna_append(&res, &file);
+        }
+    } 
+
+    return res;
+}
+
+ZD_DEF struct zd_dyna zd_fs_find(const char *pathname, int attrs)
+{
+    struct zd_dyna res = {0};
+    zd_dyna_init(&res, sizeof(struct zd_string), zd_string_destroy);
+
+    if (!pathname) return res;
+
+    int type = zd_fs_typeof(pathname);
+    if (type == FT_DIR) {
+        struct zd_meta_dir md = {0};
+        zd_fs_loadd(pathname, &md);
+        for (size_t i = 0; i < md.f_cnt; i++) {
+            if (zd_fs_check_perm(md.files[i], attrs)) {
+                struct zd_string file = {0};
+                zd_string_append(&file, md.files[i]); 
+                zd_dyna_append(&res, &file);
+            }
+        }
+        zd_fs_destroy_md(&md);
+    } else if (type == FT_REG) {
+        if (zd_fs_check_perm(pathname, attrs)) {
+            struct zd_string file = {0};
+            zd_string_append(&file, pathname);
+            zd_dyna_append(&res, &file);
+        }
+    } 
+
+    return res;
 }
 
 ZD_DEF bool zd_fs_remove(const char *pathname)
@@ -1536,7 +1611,7 @@ ZD_DEF int zd_fs_typeof(const char *pathname)
     if (!pathname)
         return FT_NOET;
 
-#if defined(_WIN32)
+#ifdef _WIN32
     DWORD attr = GetFileAttributesA(pathname);
     if (attr == INVALID_FILE_ATTRIBUTES)
         return FT_NOET;
@@ -1545,26 +1620,24 @@ ZD_DEF int zd_fs_typeof(const char *pathname)
         return FT_DIR;
     else
         return FT_REG;
-#elif defined(__linux__)
+#else
     struct stat sb;
     if (stat(pathname, &sb) == -1) 
         return FT_NOET;
 
-   switch (sb.st_mode & S_IFMT) {
-   case S_IFBLK:
-   case S_IFCHR:
-   case S_IFIFO:
-   case S_IFLNK:
-   case S_IFSOCK:
-   case S_IFREG:
-       return FT_REG;
-   case S_IFDIR:
-       return FT_DIR;
-   default: 
-       return FT_NOET;
-   }
-#else
-    NOT_SUPPORT("zd_fs_typeof");
+    switch (sb.st_mode & S_IFMT) {
+    case S_IFBLK:
+    case S_IFCHR:
+    case S_IFIFO:
+    case S_IFLNK:
+    case S_IFSOCK:
+    case S_IFREG:
+        return FT_REG;
+    case S_IFDIR:
+        return FT_DIR;
+    default: 
+        return FT_NOET;
+    }
 #endif /* platform */
 }
 
@@ -1579,7 +1652,7 @@ ZD_DEF bool zd_fs_loadd(const char *dirname, struct zd_meta_dir *res)
     res->name = strdup(dirname);
     assert(res->name != NULL);
 
-#if defined(_WIN32)
+#ifdef _WIN32
     char buf[FS_MAX_PATH_SIZE];
     snprintf(buf, sizeof(buf), "%s\\*", dirname);
     WIN32_FIND_DATA findFileData;
@@ -1615,7 +1688,7 @@ ZD_DEF bool zd_fs_loadd(const char *dirname, struct zd_meta_dir *res)
 
     FindClose(hFind);
     return true;
-#elif defined(__linux__)
+#else
     DIR *dp = opendir(dirname);
     if (!dp) {
         free(res->name);
@@ -1653,8 +1726,6 @@ ZD_DEF bool zd_fs_loadd(const char *dirname, struct zd_meta_dir *res)
 
     closedir(dp);
     return true;
-#else
-    NOT_SUPPORT("zd_fs_loadd");
 #endif /* platform */
 }
 
@@ -1689,7 +1760,8 @@ ZD_DEF bool zd_fs_loadf(const char *filename,
     res->content = malloc(res->size + 1);    
     assert(res->content != NULL);
 
-#if defined(_WIN32)
+#ifdef _WIN32
+    /* \r\n */
     fread(res->content, 1, res->size, fp);
 #else
     size_t read_size = fread(res->content, 1, res->size, fp);
@@ -1699,10 +1771,11 @@ ZD_DEF bool zd_fs_loadf(const char *filename,
         res->content = NULL;
         return false;
     }
-#endif
+#endif /* platform */
 
     res->content[res->size] = '\0';
     res->line = count_line(res->content, res->size);
+    res->attr = zd_fs_get_attr(filename);
 
     fclose(fp);
     return true;
@@ -1720,6 +1793,32 @@ ZD_DEF void zd_fs_destroy_mf(struct zd_meta_file *mf)
     mf->type = FT_NOET;
     mf->size = 0;
     mf->line = 0;
+}
+
+ZD_DEF int zd_fs_get_attr(const char *filename)
+{
+    int perm = 0;
+#ifdef _WIN32
+    if (_access(filename, 4) == 0) perm |= FA_READ;
+    if (_access(filename, 2) == 0) perm |= FA_WRITE;
+    if (_access(filename, 1) == 0) perm |= FA_EXEC;
+#else
+    struct stat sb;
+    if (stat(filename, &sb) != 0) {
+        return perm;
+    }
+
+    if (sb.st_mode & S_IRUSR) perm |= FA_READ;
+    if (sb.st_mode & S_IWUSR) perm |= FA_WRITE;
+    if (sb.st_mode & S_IXUSR) perm |= FA_EXEC;
+#endif /* platform */
+
+    return perm;
+}
+
+ZD_DEF bool zd_fs_check_perm(const char *filename, int perm)
+{
+    return zd_fs_get_attr(filename) & perm;
 }
 
 ZD_DEF void zd_fs_destroy_md(struct zd_meta_dir *md)
@@ -1959,7 +2058,28 @@ ZD_DEF void zd_string_append(struct zd_string *str, const char *fmt, ...)
     va_end(args);
 }
 
-ZD_DEF struct zd_string zd_string_rep(const char *str, size_t times)
+ZD_DEF struct zd_string zd_string_replace(const char *str,
+        const char *s_old, const char *s_new)
+{
+    struct zd_string res = {0};
+    char *pos = strstr(str, s_old);
+
+    if (!pos) return res;
+    size_t len_before = pos - str;
+
+    struct zd_string tmp = {0};
+    zd_string_append(&tmp, str);
+    tmp.base[len_before] = '\0';
+
+    zd_string_append(&res, tmp.base); 
+    zd_string_append(&res, s_new);
+    zd_string_append(&res, pos + strlen(s_old));
+
+    zd_string_destroy(&tmp);
+    return res; 
+}
+
+ZD_DEF struct zd_string zd_string_repeat(const char *str, size_t times)
 {
     struct zd_string res = {0};
 
@@ -2085,97 +2205,6 @@ ZD_DEF void zd_stack_destroy(struct zd_stack *stk)
 }
 
 #endif /* ZD_DS_STACK */
-
-#ifdef ZD_DYNASM
-
-#if defined(__linux__)
-
-ZD_DEF void *zd_dynasm_map(size_t size)
-{
-    if (size == 0) 
-        size = ZD_PAGE_SIZE;
-    void *addr = mmap(NULL, size, PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON, -1, 0);
-    if (addr == MAP_FAILED) 
-        return NULL;
-    return addr;
-}
-
-ZD_DEF void *zd_dynasm_do(char *code, void *addr)
-{
-    if (!code || !addr) 
-        return NULL;
-
-    /* write the code into a asm file */
-
-    char tmp_asm[] = "/tmp/tempfile_XXXXXX";
-
-    int asm_fd = mkstemp(tmp_asm);
-    if (asm_fd < 0) 
-        return NULL;
-
-    char buf[ZD_PAGE_SIZE];
-    snprintf(buf, sizeof(buf), "use64\n%s", code);
-    size_t asm_size = strlen(buf);
-
-    if (write(asm_fd, buf, asm_size) != (ssize_t) asm_size) {
-        close(asm_fd);
-        unlink(tmp_asm);
-        return NULL;
-    }
-    close(asm_fd);
-
-    /* use assembler (fasm) to compile asm file, and output binary file */
-
-    char tmp_bin[] = "/tmp/tempfile_XXXXXX";
-
-    int bin_fd = mkstemp(tmp_bin);
-    if (bin_fd < 0) 
-        return NULL;
-
-    pid_t pid = fork(); 
-    if (pid == 0) {
-        close(bin_fd);
-
-        /* diable the output from child process */
-        int devnull_fd = open("/dev/null", O_WRONLY);
-        if (devnull_fd < 0) 
-            _exit(1);
-
-        dup2(devnull_fd, STDOUT_FILENO);
-        dup2(devnull_fd, STDERR_FILENO);
-        close(devnull_fd);
-
-        execlp(ZD_ASSEMBLER, ZD_ASSEMBLER, tmp_asm, tmp_bin, NULL);
-        _exit(1);
-    }
-    waitpid(pid, NULL, 0);
-
-    unlink(tmp_asm);
-
-    /* load the machine code into an mapped executable page */
-
-    size_t read_size = read(bin_fd, buf, sizeof(buf));
-    if (read_size > ZD_PAGE_SIZE) 
-        read_size = ZD_PAGE_SIZE;
-
-    memcpy(addr, buf, read_size);
-
-    close(bin_fd);
-    unlink(tmp_bin);
-
-    return addr;
-}
-
-ZD_DEF void zd_dynasm_free(void *addr)
-{
-    munmap(addr, ZD_PAGE_SIZE);
-}
-
-#elif defined(_WIN32)
-#else
-#endif /* platform */
-
-#endif /* ZD_DYNASM */
 
 #ifdef ZD_DS_TRIE
 
@@ -2389,7 +2418,6 @@ ZD_DEF void *zd_queue_rear(struct zd_queue *qp)
 
 static void zd_print_color(const char *fmt, va_list args)
 {
-#if defined(_WIN32) || defined(__linux__)
     va_list args_copy;
     va_copy(args_copy, args);
     size_t len = vsnprintf(NULL, 0, fmt, args_copy);
@@ -2427,9 +2455,6 @@ static void zd_print_color(const char *fmt, va_list args)
 
     free(raw_buf);
     free(res_buf);
-#else
-    NOT_SUPPORT("zd_print_color");
-#endif /* platform */
 }
 
 #define _print_seperator(max_widths, col)                       \
@@ -2633,7 +2658,7 @@ ZD_DEF int zd_cmd_run(struct zd_cmd *cmd)
         char *arg = ((struct zd_string *) zd_dyna_get(&cmd->args, i))->base;
         zd_string_append(&cmd_string, " %s", arg);
     }
-#if defined(_WIN32)
+#ifdef _WIN32
     zd_string_append(&cmd_string, " %s", "-D__USE_MINGW_ANSI_STDIO");
 #endif /* platform */
     zd_string_append(&cmd_string, " ");
@@ -2655,6 +2680,59 @@ ZD_DEF void zd_build_init(struct zd_builder *builder)
 {
     zd_dyna_init(&builder->cmds, sizeof(struct zd_cmd), NULL);
     builder->count = 0;
+}
+
+static void _build_update_self(const char *cc, int argc,
+        char **argv, const char *source, ...)
+{
+    unsigned long long t1 = zd_fs_get_timestamp(argv[0]);
+    unsigned long long t2 = zd_fs_get_timestamp(source);
+
+    if (t1 >= t2) return;
+
+    /* backup */
+    struct zd_string src = {0};
+    zd_string_append(&src, "%s.old", source);
+    zd_fs_copy(source, src.base, false);
+    struct zd_string exe = {0};
+    zd_string_append(&exe, "%s.old", argv[0]);
+    zd_fs_copy(argv[0], exe.base, true);
+
+    struct zd_cmd cmd = {0};
+    zd_cmd_init(&cmd);
+
+    /* recompile */
+    zd_cmd_append_arg(&cmd, cc);
+    zd_cmd_append_arg(&cmd, "-o", argv[0], source);
+
+    /* add extra args */
+    va_list ap;
+    va_start(ap, source);
+    char *arg;
+    while ((arg = va_arg(ap, char *)) != NULL)
+        zd_cmd_append_arg(&cmd, arg);
+    va_end(ap);
+
+    /* execute */
+    zd_cmd_append_arg(&cmd, "&&");
+    for (int i = 0; i < argc; i++)
+        zd_cmd_append_arg(&cmd, argv[i]);
+
+    zd_log(LOG_INFO, "<< Update Self >>");
+
+    if (zd_cmd_run(&cmd) != 0) {
+        /* restore and report error */
+        zd_fs_move(src.base, source, false);
+        zd_fs_move(exe.base, argv[0], true);
+        zd_log(LOG_FATAL, "failed to update self");
+    }
+
+    zd_fs_remove(src.base);
+    zd_fs_remove(exe.base);
+    zd_string_destroy(&src);
+    zd_string_destroy(&exe);
+    zd_cmd_destroy(&cmd);
+    exit(0);
 }
 
 static void _build_append_cmd(struct zd_builder *builder, ...)

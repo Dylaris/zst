@@ -1,3 +1,12 @@
+#ifdef _WIN32
+
+int main(void)
+{
+    return 0;
+}
+
+#else
+
 #define ZD_IMPLEMENTATION
 #define ZD_COROUTINE
 #include "zd.h"
@@ -36,3 +45,5 @@ int main(void)
 
     return 0;
 }
+
+#endif

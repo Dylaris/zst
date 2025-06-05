@@ -173,29 +173,29 @@ char *test6(void)
     char *ptr;
 
 #if defined(_WIN32)
-    ptr = zd_fs_getname("D:\\Code\\c\\Project\\zd");
+    ptr = zd_fs_get_name("D:\\Code\\c\\Project\\zd");
     zd_assert(strcmp(ptr, "zd") == 0, NULL);
 
-    ptr = zd_fs_getname("D:\\Code\\c\\Project\\zd\\");
+    ptr = zd_fs_get_name("D:\\Code\\c\\Project\\zd\\");
     zd_assert(strcmp(ptr, "") == 0, NULL);
 
-    ptr = zd_fs_getname("D:\\Code\\c\\Project\\zd\\zd_fs.c");
+    ptr = zd_fs_get_name("D:\\Code\\c\\Project\\zd\\zd_fs.c");
     zd_assert(strcmp(ptr, "fs.c") == 0, NULL);
 #else
-    ptr = zd_fs_getname("/home/dylaris/fun/zd");
+    ptr = zd_fs_get_name("/home/dylaris/fun/zd");
     zd_assert(strcmp(ptr, "zd") == 0, NULL);
 
-    ptr = zd_fs_getname("/home/dylaris/fun/zd/");
+    ptr = zd_fs_get_name("/home/dylaris/fun/zd/");
     zd_assert(strcmp(ptr, "") == 0, NULL);
 
-    ptr = zd_fs_getname("/home/dylaris/fun/zd/fs.c");
+    ptr = zd_fs_get_name("/home/dylaris/fun/zd/fs.c");
     zd_assert(strcmp(ptr, "fs.c") == 0, NULL);
 #endif
 
-    ptr = zd_fs_getname("fs.c");
+    ptr = zd_fs_get_name("fs.c");
     zd_assert(strcmp(ptr, "fs.c") == 0, NULL);
 
-    return "test zd_fs_getname done!";
+    return "test zd_fs_get_name done!";
 }
 
 char *test7(void)

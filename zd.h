@@ -1801,7 +1801,13 @@ ZD_DEF int zd_fs_get_attr(const char *filename)
 #ifdef _WIN32
     if (_access(filename, 4) == 0) perm |= FA_READ;
     if (_access(filename, 2) == 0) perm |= FA_WRITE;
-    if (_access(filename, 1) == 0) perm |= FA_EXEC;
+    const char *ext = strrchr(filename, '.');
+    if (ext) { 
+        if (strcmp(ext, ".exe") == 0 || strcmp(ext, ".bat") == 0 ||
+            strcmp(ext, ".cmd") == 0 || strcmp(ext, ".com") == 0) {
+            perm |= FA_EXEC;
+        }
+    }
 #else
     struct stat sb;
     if (stat(filename, &sb) != 0) {

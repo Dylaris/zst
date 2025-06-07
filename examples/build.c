@@ -1,6 +1,6 @@
 #define ZD_IMPLEMENTATION
-// #define ZD_BUILD
-#include "zd2.h"
+#define ZD_BUILD
+#include "zd.h"
 
 void compile(void)
 {

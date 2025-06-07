@@ -16,21 +16,14 @@
  * '+' means you can use it in 'linux' and 'windows', otherwise only 'linux'
  *
  * + ZD_BUILD             Build the c project using only c 
- * + ZD_TEST              Simple testing tool
- * + ZD_PRINT             Some special print
  * + ZD_LOG               Simple logging for information
  * + ZD_FS                Some operations about file and directory
  * + ZD_WILDCARD          Wildcard ( '*', '?' )
- *   ZD_COROUTINE         A simple coroutine implementation (based on GNU GCC)
  * + ZD_COMMAND_LINE      Some operations about command line (option, ...)
  * + ZD_DS_DYNAMIC_ARRAY  Dynamic array
- * + ZD_DS_DYNAMIC_BUFFER Dynamic buffer
  * + ZD_DS_STRING         String
  * + ZD_DS_STACK          Stack
- * + ZD_DS_HASH           Hash table (based on linked-list)
- * + ZD_DS_TRIE           Trie or prefix tree
  * + ZD_DS_QUEUE          Queue (based on linked-list)
- * + ZD_DS_LINKED_LIST    Linked list
  *
  * !!! NOTE !!!
  *
@@ -53,82 +46,6 @@
 #include <stdarg.h>
 #include <assert.h>
 
-/* handle some dependencies between macros */
-#ifdef ZD_COMMAND_LINE
-  #ifndef ZD_DS_DYNAMIC_ARRAY
-    #define ZD_DS_DYNAMIC_ARRAY
-  #endif
-  #ifndef ZD_DS_STRING
-    #define ZD_DS_STRING
-  #endif
-  #ifndef ZD_LOG
-    #define ZD_LOG
-  #endif
-  #ifndef ZD_WILDCARD
-    #define ZD_WILDCARD
-  #endif
-#endif
-
-#ifdef ZD_COROUTINE
-  #ifndef ZD_DS_DYNAMIC_ARRAY
-    #define ZD_DS_DYNAMIC_ARRAY
-  #endif
-  #ifndef ZD_DS_STACK
-    #define ZD_DS_STACK
-  #endif
-#endif
-
-#ifdef ZD_FS
-  #ifndef ZD_DS_DYNAMIC_ARRAY
-    #define ZD_DS_DYNAMIC_ARRAY
-  #endif
-  #ifndef ZD_WILDCARD
-    #define ZD_WILDCARD
-  #endif
-  #ifndef ZD_DS_STRING
-    #define ZD_DS_STRING
-  #endif
-#endif
-
-#ifdef ZD_BUILD
-  #ifndef ZD_LOG
-    #define ZD_LOG
-  #endif
-  #ifndef ZD_FS
-    #define ZD_FS
-  #endif
-  #ifndef ZD_WILDCARD
-    #define ZD_WILDCARD
-  #endif
-  #ifndef ZD_COMMAND_LINE
-    #define ZD_COMMAND_LINE
-  #endif
-  #ifndef ZD_DS_STRING
-    #define ZD_DS_STRING
-  #endif
-  #ifndef ZD_DS_DYNAMIC_ARRAY
-    #define ZD_DS_DYNAMIC_ARRAY
-  #endif
-#endif
-
-#ifdef ZD_DS_QUEUE
-  #ifndef ZD_DS_DYNAMIC_ARRAY
-    #define ZD_DS_DYNAMIC_ARRAY
-  #endif
-#endif
-
-#ifdef ZD_DS_STACK
-  #ifndef ZD_DS_DYNAMIC_ARRAY
-    #define ZD_DS_DYNAMIC_ARRAY
-  #endif
-#endif
-
-#define NOT_SUPPORT(msg)                            \
-    do {                                            \
-        fprintf(stderr, "'%s' not support\n", msg); \
-        exit(EXIT_FAILURE);                         \
-    } while (0)
-
 #ifndef ZD_DEF
   #ifdef ZD_STATIC
     #define ZD_DEF static
@@ -141,7 +58,7 @@
 extern "C" {
 #endif /* __cplusplus */
 
-#ifdef ZD_WILDCARD
+/* MODULE: ZD_WILDCARD */
 
 ZD_DEF bool zd_wildcard_match(const char *str, const char *pattern);
 ZD_DEF void zd_wildcard_capture(const char *str, const char *pattern,
@@ -150,9 +67,7 @@ ZD_DEF void zd_wildcard_capture(const char *str, const char *pattern,
 #define wc_match    zd_wildcard_match
 #define wc_capture  zd_wildcard_capture
 
-#endif /* ZD_WILDCARD */
-
-#ifdef ZD_LOG
+/* MODULE: ZD_LOG */
 
 #define LOG_INFO  1
 #define LOG_ERROR 2
@@ -164,72 +79,7 @@ ZD_DEF void zd_log(int type, const char *fmt, ...);
 
 #define log zd_log
 
-#endif /* ZD_LOG */
-
-#ifdef ZD_TEST
-
-struct zd_testsuite {
-    size_t pass_count;
-    size_t fail_count;
-    const char *name;
-};
-
-static struct zd_testsuite *__suite_ptr__;
-
-#ifndef zd_type_cast
-  #ifdef ZD_IMPLEMENTATION
-    #define zd_type_cast(obj, type) (type (obj))  
-  #else
-    #define zd_type_cast(obj, type)
-  #endif
-#endif
-
-#ifndef zd_assert
-  #ifdef ZD_IMPLEMENTATION
-    #define zd_assert(exp, msg)                                     \
-        do {                                                        \
-            if ((exp)) zd_pass(msg);                                \
-            else       zd_fail(msg);                                \
-        } while (0)
-  #else
-    #define zd_assert(exp, msg)
-  #endif
-#endif
-
-ZD_DEF void zd_pass(const char *msg);
-ZD_DEF void zd_fail(const char *msg);
-ZD_DEF void zd_run_test(struct zd_testsuite *suite, char *(*test)(void));
-ZD_DEF void zd_test_summary(struct zd_testsuite *suite);
-
-typedef struct zd_testsuite suite_t;
-
-#define CAST        zd_type_cast
-#define ASSERT      zd_assert
-#define PASS        zd_pass
-#define FAIL        zd_fail
-#define RUN         zd_run_test
-#define SUMMARY     zd_test_summary
-
-#endif /* ZD_TEST */
-
-#ifdef ZD_DS_DYNAMIC_BUFFER
-
-struct zd_dynb {
-    char *base;
-    size_t capacity;
-};
-
-ZD_DEF void zd_dynb_resize(struct zd_dynb *db, int size);
-ZD_DEF void zd_dynb_destroy(void *arg);
-
-typedef struct zd_dynb  dynb_t;
-
-#define dynb_resize     zd_dynb_resize
-#define dynb_destroy    zd_dynb_destroy
-
-#endif /* ZD_DS_DYNAMIC_BUFFER */
-
-#ifdef ZD_DS_DYNAMIC_ARRAY
+/* MODULE: ZD_DS_DYNAMIC_ARRAY */
 
 struct zd_dyna {
     void *base;
@@ -237,7 +87,7 @@ struct zd_dyna {
     size_t capacity;
     void (*clear_item)(void *);
     size_t size;    /* size of each element */
-    size_t pos;     /* iterator position */
+    size_t pos;
 };
 
 ZD_DEF void zd_dyna_init(struct zd_dyna *da, size_t size,
@@ -261,9 +111,7 @@ typedef struct zd_dyna  dyna_t;
 #define dyna_destroy    zd_dyna_destroy
 #define dyna_next       zd_dyna_next
 
-#endif /* ZD_DS_DYNAMIC_ARRAY */
-
-#ifdef ZD_DS_STRING
+/* MODULE: ZD_DS_STRING */
 
 struct zd_string {
     char *base;
@@ -286,9 +134,7 @@ typedef struct zd_string string_t;
 #define string_replace  zd_string_replace
 #define string_destroy  zd_string_destroy
 
-#endif /* ZD_DS_STRING */
-
-#ifdef ZD_DS_STACK
+/* MODULE: ZD_DS_STACK */
 
 struct zd_stack {
     void *base;
@@ -314,35 +160,7 @@ typedef struct zd_stack stack_t;
 #define stack_top       zd_stack_top
 #define stack_destroy   zd_stack_destroy
 
-#endif /* ZD_DS_STACK */
-
-#ifdef ZD_DS_TRIE
-
-#ifndef ZD_TRIE_SIZE
-  #define ZD_TRIE_SIZE   26
-#endif
-
-struct zd_trie_node {
-    struct zd_trie_node *children[ZD_TRIE_SIZE];
-    bool is_end;
-    size_t count;
-};
-
-ZD_DEF struct zd_trie_node *zd_trie_create_node(void);
-ZD_DEF void zd_trie_insert(struct zd_trie_node *root, const char *word);
-ZD_DEF int zd_trie_search(struct zd_trie_node *root, const char *word);
-ZD_DEF void zd_trie_destroy(struct zd_trie_node *root);
-
-typedef struct zd_trie_node trie_node_t;
-
-#define trie_create_node    zd_trie_create_node
-#define trie_insert         zd_trie_insert
-#define trie_search         zd_trie_search
-#define trie_destroy        zd_trie_destroy
-
-#endif /* ZD_DS_TRIE */
-
-#ifdef ZD_DS_QUEUE
+/* MODULE: ZD_DS_QUEUE */
 
 struct zd_queue_node {
     void *data;
@@ -385,107 +203,7 @@ typedef struct zd_queue queue_t;
 #define queue_pop       zd_queue_pop
 #define queue_isempty   zd_queue_isempty
 
-#endif /* ZD_DS_QUEUE */
-
-#ifdef ZD_DS_HASH
-
-#define LOAD_TH_UPPER 0.75
-#define LOAD_TH_LOWER 0.25
-
-#define HASH_EXPAND 1
-#define HASH_SHRINK 0
-
-struct zd_hash_node {
-    void *key;
-    void *val;
-    void *next;
-};
-
-struct zd_hash_tbl {
-    struct zd_hash_node **buckets;  /* dymmy head of bucket list */
-    float load;
-    size_t count;
-    size_t capacity;
-    size_t key_size;
-    size_t val_size;
-    bool (*key_cmp)(void *, void *);
-    size_t (*hash_func)(void *);
-    void (*key_free)(void *); 
-    void (*val_free)(void *); 
-};
-
-ZD_DEF void zd_htbl_init(struct zd_hash_tbl *htbl, size_t ksz, size_t vsz,
-        bool (*key_cmp)(void *k1, void *k2), size_t (*hash_func)(void *),
-        void (*key_free)(void *), void (*val_free)(void *));
-ZD_DEF void zd_htbl_destroy(struct zd_hash_tbl *htbl);
-ZD_DEF void zd_htbl_insert(struct zd_hash_tbl *htbl, void *key, void *val);
-ZD_DEF void zd_htbl_remove(struct zd_hash_tbl *htbl, void *key);
-ZD_DEF bool zd_htbl_search(struct zd_hash_tbl *htbl, void *key);
-ZD_DEF void *zd_htbl_get(struct zd_hash_tbl *htbl, void *key);
-ZD_DEF void zd_htbl_set(struct zd_hash_tbl *htbl, void *key, void *val);
-ZD_DEF void zd_htbl_resize(struct zd_hash_tbl *htbl, int mode);
-
-static inline size_t DJB_hash(const char *key, size_t key_len);
-static inline size_t SDBM_hash(const char *key, size_t key_len);
-static inline size_t int_hash(int key);
-static inline size_t float_hash(float key);
-
-#define STRING_HASH(key) DJB_hash((key), strlen(key))
-#define INT_HASH(key) int_hash(key)
-
-typedef struct zd_hash_node hash_node_t;
-typedef struct zd_hash_tbl  hash_tbl_t;
-
-#define htbl_init       zd_htbl_init
-#define htbl_destroy    zd_htbl_destroy
-#define htbl_insert     zd_htbl_insert
-#define htbl_remove     zd_htbl_remove
-#define htbl_search     zd_htbl_search
-#define htbl_get        zd_htbl_get
-#define htbl_set        zd_htbl_set
-#define htbl_resize     zd_htbl_resize
-
-#endif /* ZD_DS_HASH */
-
-#ifdef ZD_DS_LINKED_LIST
-
-struct zd_list_node {
-    void *data;
-    struct zd_list_node *next;
-};
-
-struct zd_list {
-    struct zd_list_node head;   /* dummy */
-    size_t count;   /* element count */
-    size_t size;    /* the size of each element */
-    void (*clear_item)(void *);
-};
-
-ZD_DEF void zd_list_init(struct zd_list *list, size_t size,
-        void (*clear_item)(void *));
-ZD_DEF void zd_list_destroy(struct zd_list *list);
-ZD_DEF void zd_list_append(struct zd_list *list, void *elem);
-ZD_DEF void zd_list_insert(struct zd_list *list, size_t idx, void *elem);
-ZD_DEF void zd_list_remove(struct zd_list *list, size_t idx);
-ZD_DEF void zd_list_reverse(struct zd_list *list);
-ZD_DEF void *zd_list_get(struct zd_list *list, size_t idx);
-ZD_DEF void zd_list_set(struct zd_list *list, size_t idx, void *elem);
-
-typedef struct zd_list_node list_node_t;
-typedef struct zd_list list_t;
-
-#define list_init       zd_list_init
-#define list_destroy    zd_list_destroy
-#define list_append     zd_list_append
-#define list_insert     zd_list_insert
-#define list_remove     zd_list_remove
-#define list_reverse    zd_list_reverse
-#define list_get        zd_list_get
-#define list_set        zd_list_set
-
-#endif /* ZD_DS_LINKED_LIST */
-
-#ifdef ZD_FS
+/* MODULE: ZD_FS */
 
 #ifdef _WIN32
   #include <windows.h>
@@ -556,8 +274,8 @@ ZD_DEF void zd_fs_destroy_md(struct zd_meta_dir *md);
 ZD_DEF int zd_fs_get_attr(const char *filename);
 ZD_DEF bool zd_fs_check_perm(const char *filename, int perm);
 
-typedef struct zd_meta_file mf_t;
-typedef struct zd_meta_dir  md_t;
+typedef struct zd_meta_file metafile_t;
+typedef struct zd_meta_dir  metadir_t;
 
 #define fs_get_timestamp    zd_fs_get_timestamp
 #define fs_get_name         zd_fs_get_name
@@ -580,9 +298,7 @@ typedef struct zd_meta_dir  md_t;
 #define fs_destroy_mf       zd_fs_destroy_mf
 #define fs_destroy_md       zd_fs_destroy_md
 
-#endif /* ZD_FS */
-
-#ifdef ZD_COMMAND_LINE
+/* MODULE: ZD_COMMAND_LINE */
 
 /* option type */
 #define OPTT_NO_ARG     0
@@ -641,9 +357,7 @@ typedef struct zd_cmdl      cmdl_t;
 #define cmdlopt_dump    zd_cmdlopt_dump
 #define cmdlopt_destroy zd_cmdlopt_destroy
 
-#endif /* ZD_COMMAND_LINE */
-
-#ifdef ZD_BUILD
+/* MODULE: ZD_BUILD */
 
 #define EXEC_UNDO   0
 #define EXEC_OK     1
@@ -715,101 +429,6 @@ typedef struct zd_builder   builder_t;
 #define build_run_sync      zd_build_run_sync
 #define build_update_self   zd_build_update_self
 
-#endif /* ZD_BUILD */
-
-#ifdef ZD_PRINT
-
-#include <math.h>
-
-#define OPT_COLOR 1
-#define OPT_S_TBL 2
-#define OPT_D_TBL 3
-
-ZD_DEF void zd_print(int opt, ...);
-
-#define print zd_print
-
-#endif /* ZD_PRINT */
-
-#ifdef ZD_COROUTINE
-
-#if defined(__linux__) && defined(__GNUC__)
-
-#define COROUTINE_STACK_SIZE (16*1024)
-#define PROTECTION_REGION    64
-
-// 64bit (context.regs[14])
-// low
-//      | regs[0]:  r15 |
-//      | regs[1]:  r14 |
-//      | regs[2]:  r13 |
-//      | regs[3]:  r12 |
-//      | regs[4]:  r9  |
-//      | regs[5]:  r8  |
-//      | regs[6]:  rbp |
-//      | regs[7]:  rdi |
-//      | regs[8]:  rsi |
-//      | regs[9]:  ret |   // return address
-//      | regs[10]: rdx |
-//      | regs[11]: rcx |
-//      | regs[12]: rbx |
-//      | regs[13]: rsp |
-// high
-
-enum ctx_reg_idx {
-    CTX_R15, CTX_R14, CTX_R13, CTX_R12, CTX_R9,  CTX_R8,  CTX_RBP,
-    CTX_RDI, CTX_RSI, CTX_RET, CTX_RDX, CTX_RCX, CTX_RBX, CTX_RSP
-};
-
-#define ST_READY   0
-#define ST_RUNNING 1
-#define ST_SUSPEND 2
-#define ST_DEAD    3
-
-struct zd_coctx {
-    void *regs[14];
-    size_t stack_size;
-    void *stack_base;
-    int status;
-    int id;
-};
-
-struct zd_colib {
-    struct zd_dyna coctxs;
-    struct zd_stack back_stk;   /* record the back address to resume() invoke */
-    struct zd_coctx *cur_coctx;
-};
-
-static void __attribute__((naked)) zd_coctx_swap(struct zd_coctx *cur,
-        struct zd_coctx *next);
-ZD_DEF struct zd_colib *zd_colib_init(void);
-ZD_DEF void zd_colib_destroy(struct zd_colib *colib);
-ZD_DEF struct zd_coctx *zd_coctx_create(struct zd_colib *colib,
-        void (*task)(void *), void *arg);
-ZD_DEF void zd_coctx_resume(struct zd_colib *colib, struct zd_coctx *next);
-ZD_DEF void zd_coctx_yield(struct zd_colib *colib);
-ZD_DEF void zd_coctx_finish(struct zd_colib *colib);
-ZD_DEF void zd_coctx_collect(struct zd_colib *colib, struct zd_coctx *co);
-ZD_DEF size_t zd_coctx_alive(struct zd_colib *colib);
-ZD_DEF int zd_coctx_workid(struct zd_colib *colib);
-
-typedef struct zd_coctx coctx_t;
-typedef struct zd_colib colib_t;
-
-#define colib_init      zd_colib_init
-#define colib_destroy   zd_colib_destroy
-#define coctx_create    zd_coctx_create
-#define coctx_resume    zd_coctx_resume
-#define coctx_yield     zd_coctx_yield
-#define coctx_finish    zd_coctx_finish
-#define coctx_collect   zd_coctx_collect
-#define coctx_alive     zd_coctx_alive
-#define coctx_workid    zd_coctx_workid
-
-#endif /* platform */
-
-#endif /* ZD_COROUTINE */
-
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
@@ -818,7 +437,7 @@ typedef struct zd_colib colib_t;
 
 #ifdef ZD_IMPLEMENTATION
 
-#ifdef ZD_COMMAND_LINE
+/* MODULE: ZD_COMMAND_LINE */
 
 ZD_DEF void zd_cmdl_dump(struct zd_cmdl *cmdl)
 {
@@ -1260,9 +879,7 @@ ZD_DEF void zd_cmdlopt_destroy(void *arg)
     zd_string_destroy(&opt->description);
 }
 
-#endif /* ZD_COMMAND_LINE */
-
-#ifdef ZD_FS
+/* MODULE: ZD_FS */
 
 static inline int count_line(char *buf, size_t size)
 {
@@ -1881,57 +1498,15 @@ ZD_DEF bool zd_fs_dumpf(const char *dest_file,
     return true;
 }
 
-#endif /* ZD_FS */
+/* MODULE: ZD_DS_DYNAMIC_ARRAY */
 
-#ifdef ZD_TEST
-
-#define ZD_TEST_COLOR_RESET   "\x1b[0m"
-#define ZD_TEST_COLOR_RED     "\x1b[31m"
-#define ZD_TEST_COLOR_GREEN   "\x1b[32m"
-
-ZD_DEF void zd_pass(const char *msg)
+/* A iterator */
+ZD_DEF void *zd_dyna_next(struct zd_dyna *da)
 {
-    int case_id = __suite_ptr__->pass_count + __suite_ptr__->fail_count + 1;
-    printf("<suite:%s> case %03d: [" ZD_TEST_COLOR_GREEN "pass" 
-            ZD_TEST_COLOR_RESET "] %s\n", __suite_ptr__->name, case_id, 
-            (msg != NULL) ? msg : ""); 
-    fflush(stdout);
-    __suite_ptr__->pass_count += 1;
+    if (da->pos > da->count)
+        da->pos = 0;
+    return zd_dyna_get(da, da->pos++);
 }
-
-ZD_DEF void zd_fail(const char *msg)
-{
-    int case_id = __suite_ptr__->pass_count + __suite_ptr__->fail_count + 1;
-    printf("<suite:%s> case %03d: [" ZD_TEST_COLOR_RED "fail" 
-            ZD_TEST_COLOR_RESET "] %s\n", __suite_ptr__->name, case_id,
-            (msg != NULL) ? msg : ""); 
-    fflush(stdout);
-    __suite_ptr__->fail_count += 1;
-}
-
-ZD_DEF void zd_run_test(struct zd_testsuite *suite, char *(*test)(void))
-{
-    __suite_ptr__ = suite;
-    char *msg = test();
-    if (msg) 
-        printf("<suite:%s> %s\n", __suite_ptr__->name, msg);
-}
-
-ZD_DEF void zd_test_summary(struct zd_testsuite *suite)
-{
-    printf("TEST SUITE: <%s>\n", suite->name);
-    printf("      PASS: %zu\n", suite->pass_count);
-    printf("      FAIL: %zu\n", suite->fail_count);
-    printf("     TOTAL: %zu\n", suite->pass_count + suite->fail_count);
-}
-
-#undef ZD_TEST_COLOR_RESET
-#undef ZD_TEST_COLOR_RED
-#undef ZD_TEST_COLOR_GREEN
-
-#endif /* ZD_TEST */
-
-#ifdef ZD_DS_DYNAMIC_ARRAY
 
 ZD_DEF void zd_dyna_init(struct zd_dyna *da, size_t size,
         void (*clear_item)(void *))
@@ -2024,17 +1599,7 @@ ZD_DEF void zd_dyna_destroy(struct zd_dyna *da)
     da->pos = 0;
 }
 
-/* A iterator */
-ZD_DEF void *zd_dyna_next(struct zd_dyna *da)
-{
-    if (da->pos > da->count)
-        da->pos = 0;
-    return zd_dyna_get(da, da->pos++);
-}
-
-#endif /* ZD_DS_DYNAMIC_ARRAY */
-
-#ifdef ZD_DS_STRING
+/* MODULE: ZD_DS_STRING */
 
 ZD_DEF void zd_string_append(struct zd_string *str, const char *fmt, ...)
 {
@@ -2126,37 +1691,7 @@ ZD_DEF void zd_string_destroy(void *arg)
     str->capacity = 0;
 }
 
-#endif /* ZD_DS_STRING */
-
-#ifdef ZD_DS_DYNAMIC_BUFFER
-
-ZD_DEF void zd_dynb_resize(struct zd_dynb *db, int size)
-{
-    if (size > 0) {
-        db->capacity += size;
-        db->base = realloc(db->base, db->capacity);
-    } else {
-        size_t abs_size = (size_t) -size;
-        db->capacity = (db->capacity > abs_size) ? (db->capacity - abs_size) : 0;
-        db->base = realloc(db->base, db->capacity);
-    }
-    assert((db->capacity >  0 && db->base != NULL) ||
-           (db->capacity == 0 && db->base == NULL));
-}
-
-ZD_DEF void zd_dynb_destroy(void *arg)
-{
-    struct zd_dynb *db = (struct zd_dynb *) arg;
-    if (db->base != NULL) {
-        free(db->base);
-        db->base = NULL;
-    }
-    db->capacity = 0;
-}
-
-#endif /* ZD_DS_DYNAMIC_BUFFER */
-
-#ifdef ZD_DS_STACK
+/* MODULE: ZD_DS_STACK */
 
 ZD_DEF void zd_stack_init(struct zd_stack *stk, size_t size,
         void (*clear_item)(void *))
@@ -2217,85 +1752,7 @@ ZD_DEF void zd_stack_destroy(struct zd_stack *stk)
     stk->size = 0;
 }
 
-#endif /* ZD_DS_STACK */
-
-#ifdef ZD_DS_TRIE
-
-#ifndef ZD_TRIE_SIZE
-  #define ZD_TRIE_SIZE   26
-#endif /* ZD_TRIE_SIZE */
-
-#define ZD_TRIE_MAP(x) ((x) - 'a')
-
-ZD_DEF struct zd_trie_node *zd_trie_create_node(void)
-{
-    struct zd_trie_node *node = malloc(sizeof(struct zd_trie_node));
-    assert(node != NULL);
-
-    for (int i = 0; i < ZD_TRIE_SIZE; i++)
-        node->children[i] = NULL; 
-    node->is_end = false;
-    node->count = 0;
-
-    return node;
-}
-
-ZD_DEF void zd_trie_insert(struct zd_trie_node *root, const char *word)
-{
-    if (!root) 
-        return;
-
-    struct zd_trie_node *cur = root;
-
-    while (*word != '\0') {
-        int index = ZD_TRIE_MAP(*word);
-        if (cur->children[index] == NULL)
-            cur->children[index] = zd_trie_create_node();
-        cur = cur->children[index];
-        word++;  
-    }
-
-    cur->is_end = true;
-    cur->count++;
-}
-
-ZD_DEF int zd_trie_search(struct zd_trie_node *root, const char *word)
-{
-    if (!root) 
-        return 0;
-
-    struct zd_trie_node *cur = root;
-
-    while (*word) {
-        int index = ZD_TRIE_MAP(*word);
-        if (cur->children[index] == NULL)
-            cur->children[index] = zd_trie_create_node();
-        cur = cur->children[index];
-        word++;  
-    }
-
-    if (cur || cur->is_end)
-        return cur->count;
-    else
-        return 0;
-}
-
-ZD_DEF void zd_trie_destroy(struct zd_trie_node *root)
-{
-    if (!root) 
-        return;
-
-    for (int i = 0; i < ZD_TRIE_SIZE; i++) {
-        struct zd_trie_node *cur = root->children[i];
-        if (cur) 
-            zd_trie_destroy(cur);
-    }
-    free(root);
-}
-
-#endif /* ZD_DS_TRIE */
-
-#ifdef ZD_DS_QUEUE
+/* MODULE: ZD_DS_QUEUE */
 
 static void *zd_queue_create_node(void *elem, size_t size)
 {
@@ -2406,152 +1863,7 @@ ZD_DEF void *zd_queue_rear(struct zd_queue *qp)
     return qp->rear->data;
 }
 
-#endif /* ZD_DS_QUEUE */
-
-#ifdef ZD_PRINT
-
-#ifndef M_PI
-  #define M_PI 3.14159265358979323846
-#endif
-
-#define _make_rgb(x, r, g, b)                               \
-    do {                                                    \
-        double factor = 0.3;                                \
-        r = (int)(sin(factor*(double)x+0*M_PI/3)*127+128);  \
-        g = (int)(sin(factor*(double)x+2*M_PI/3)*127+128);  \
-        b = (int)(sin(factor*(double)x+4*M_PI/3)*127+128);  \
-    } while (0)
-
-#define _make_color(buf, pos, ch, r, g, b)              \
-    do {                                                \
-        char *fmt = "\x1b[38;2;%d;%d;%dm%c\x1b[0m";     \
-        sprintf(buf+pos, fmt, r, g, b, ch);             \
-        pos += strlen(fmt);                             \
-    } while (0)
-
-static void zd_print_color(const char *fmt, va_list args)
-{
-    va_list args_copy;
-    va_copy(args_copy, args);
-    size_t len = vsnprintf(NULL, 0, fmt, args_copy);
-    va_end(args_copy);
-
-    size_t raw_buf_size = len + 1;  /* extra one for '\0' */
-    char *raw_buf = malloc(raw_buf_size);
-    assert(raw_buf != NULL);
-
-    /* output the format string */
-
-    vsnprintf(raw_buf, raw_buf_size, fmt, args);
-
-    /* generate colorful string */
-
-    size_t res_buf_size = 2 * raw_buf_size;
-    char *res_buf = malloc(res_buf_size);
-    assert(res_buf != NULL);
-    size_t pos = 0;
-
-    int r, g, b;
-    for (size_t i = 0; i < strlen(raw_buf); i++) {
-        _make_rgb(i, r, g, b);
-        _make_color(res_buf, pos, raw_buf[i], r, g, b);
-
-        if (pos >= res_buf_size - 200) {
-            res_buf_size *= 2;
-            res_buf = realloc(res_buf, res_buf_size);
-            assert(res_buf != NULL);
-        }
-    }
-    res_buf[pos] = '\0';
-
-    printf("%s", res_buf);
-
-    free(raw_buf);
-    free(res_buf);
-}
-
-#define _print_seperator(max_widths, col)                       \
-    do {                                                        \
-        for (size_t j = 0; j < col; j++) {                      \
-            printf("+");                                        \
-            for (size_t i = 0; i < max_widths[j] + 2; i++)      \
-                printf("-");                                    \
-        }                                                       \
-        printf("+\n");                                          \
-    } while (0)                                                 \
-
-
-#define _find_max_width(max_widths, row, col, tbl)      \
-    do {                                                \
-        for (size_t i = 0; i < row; i++) {              \
-            for (size_t j = 0; j < col; j++) {          \
-                const char *item = tbl[i][j];           \
-                size_t len = strlen(item);              \
-                if (len > (size_t) max_widths[j])       \
-                    max_widths[j] = len;                \
-            }                                           \
-        }                                               \
-    } while (0)
-
-#define zd_print_table(tbl, row, col)                                   \
-    do {                                                                \
-        size_t max_widths[col];                                         \
-        memset(max_widths, 0, sizeof(max_widths));                      \
-                                                                        \
-        _find_max_width(max_widths, row, col, (tbl));                   \
-                                                                        \
-        for (size_t i = 0; i < row; i++) {                              \
-            _print_seperator(max_widths, col);                          \
-            for (size_t j = 0; j < col; j++)                            \
-                printf("| %-*s ", (int) max_widths[j], (tbl)[i][j]);    \
-            printf("|\n");                                              \
-        }                                                               \
-        _print_seperator(max_widths, col);                              \
-    } while (0)
-
-ZD_DEF void zd_print(int opt, ...)
-{
-    va_list args;
-    va_start(args, opt);
-
-    switch (opt) {
-        case OPT_COLOR: {
-            const char *fmt = va_arg(args, const char *);
-            zd_print_color(fmt, args);
-        } break;
-
-        case OPT_S_TBL: {
-            const char ***arg = va_arg(args, const char ***);
-            size_t row  = va_arg(args, size_t);
-            size_t col  = va_arg(args, size_t);
-            const char *(*tbl)[col] = (const char *(*)[col]) arg;
-            zd_print_table(tbl, row, col);
-        } break;
-
-        case OPT_D_TBL: {
-            const char ***arg = va_arg(args, const char ***);
-            size_t row = va_arg(args, size_t);
-            size_t col = va_arg(args, size_t);
-            const char ***tbl = arg;
-            zd_print_table(tbl, row, col);
-        } break;
-
-        default:
-            break;
-    }
-
-    va_end(args);
-}
-
-#undef _make_color
-#undef _make_rgb
-#undef _print_seperator
-#undef _find_max_width
-#undef zd_print_table
-
-#endif /* ZD_PRINT */
-
-#ifdef ZD_LOG
+/* MODULE: ZD_LOG */
 
 #define ZD_LOG_COLOR_RESET      "\x1b[0m"
 #define ZD_LOG_COLOR_FG_RED     "\x1b[31m"
@@ -2618,9 +1930,7 @@ ZD_DEF void zd_log(int type, const char *fmt, ...)
         exit(EXIT_FAILURE);
 }
 
-#endif /* ZD_LOG */
-
-#ifdef ZD_BUILD
+/* MODULE: ZD_BUILD */
 
 static void _cmd_append_arg(struct zd_cmd *cmd, ...)
 {
@@ -2800,600 +2110,7 @@ ZD_DEF int zd_build_run_sync(struct zd_builder *builder)
     return 0;
 }
 
-#endif /* ZD_BUILD */
-
-#ifdef ZD_COROUTINE
-
-#if defined(__linux__) && defined(__GNUC__)
-
-static void __attribute__((naked)) zd_coctx_swap(struct zd_coctx *cur,
-        struct zd_coctx *next)
-{
-    (void) cur;
-    (void) next;
-    
-    __asm__ __volatile__(
-        /* store current coroutine's context */
-        "leaq (%rsp), %rax\n\t"
-        "movq %rax, 104(%rdi)\n\t"
-        "movq %rbx, 96(%rdi)\n\t"
-        "movq %rcx, 88(%rdi)\n\t"
-        "movq %rdx, 80(%rdi)\n\t"
-        "movq 0(%rax), %rax\n\t"
-        "movq %rax, 72(%rdi)\n\t"
-        "movq %rsi, 64(%rdi)\n\t"
-        "movq %rdi, 56(%rdi)\n\t"
-        "movq %rbp, 48(%rdi)\n\t"
-        "movq %r8, 40(%rdi)\n\t"
-        "movq %r9, 32(%rdi)\n\t"
-        "movq %r12, 24(%rdi)\n\t"
-        "movq %r13, 16(%rdi)\n\t"
-        "movq %r14, 8(%rdi)\n\t"
-        "movq %r15, (%rdi)\n\t"
-        "xorq %rax, %rax\n\t"
-
-        /* restore next coroutine's context */
-        "movq 48(%rsi), %rbp\n\t"
-        "movq 104(%rsi), %rsp\n\t"
-        "movq (%rsi), %r15\n\t"
-        "movq 8(%rsi), %r14\n\t"
-        "movq 16(%rsi), %r13\n\t"
-        "movq 24(%rsi), %r12\n\t"
-        "movq 32(%rsi), %r9\n\t"
-        "movq 40(%rsi), %r8\n\t"
-        "movq 56(%rsi), %rdi\n\t"
-        "movq 80(%rsi), %rdx\n\t"
-        "movq 88(%rsi), %rcx\n\t"
-        "movq 96(%rsi), %rbx\n\t"
-        "leaq 8(%rsp), %rsp\n\t"
-        "pushq 72(%rsi)\n\t"
-        "movq 64(%rsi), %rsi\n\t"
-        "ret\n\t"
-    );
-}
-
-static inline void clear_coroutine(void *arg)
-{
-    struct zd_coctx *co = (struct zd_coctx *) arg;
-    memset(co->regs, 0, sizeof(co->regs));
-    if (co->stack_base != NULL)
-        free(co->stack_base);
-    co->stack_base = NULL;
-    co->stack_size = 0;
-    co->status = -1;
-    co->id = -1;
-}
-
-ZD_DEF struct zd_colib *zd_colib_init(void)
-{
-    struct zd_colib *colib = malloc(sizeof(struct zd_colib));
-    assert(colib != NULL);
-
-    zd_dyna_init(&colib->coctxs, sizeof(struct zd_coctx), clear_coroutine);
-    zd_stack_init(&colib->back_stk, sizeof(struct zd_coctx *), NULL);
-
-    /* main coroutine */
-    struct zd_coctx co = {0};
-    co.status = ST_RUNNING;
-    co.id = colib->coctxs.count;
-
-    zd_dyna_append(&colib->coctxs, &co);
-
-    colib->cur_coctx = zd_dyna_get(&colib->coctxs, colib->coctxs.count - 1);
-
-    return colib;
-}
-
-ZD_DEF void zd_colib_destroy(struct zd_colib *colib)
-{
-    colib->cur_coctx = NULL;
-    zd_stack_destroy(&colib->back_stk);
-    zd_dyna_destroy(&colib->coctxs);
-    free(colib);
-}
-
-ZD_DEF struct zd_coctx *zd_coctx_create(struct zd_colib *colib,
-        void (*task)(void *), void *arg)
-{
-    struct zd_coctx co = {0};
-    co.stack_size = COROUTINE_STACK_SIZE;
-    co.stack_base = malloc(COROUTINE_STACK_SIZE);
-    assert(co.stack_base != NULL);
-    co.regs[CTX_RET] = task;
-    co.regs[CTX_RSP] = (char *) co.stack_base
-        + co.stack_size - PROTECTION_REGION;     /* reserve some bytes for protection */
-    co.regs[CTX_RDI] = arg;
-    co.status = ST_READY;
-    co.id = colib->coctxs.count;
-
-    zd_dyna_append(&colib->coctxs, &co);
-
-    return zd_dyna_get(&colib->coctxs, colib->coctxs.count - 1);
-}
-
-ZD_DEF void zd_coctx_resume(struct zd_colib *colib, struct zd_coctx *next)
-{
-    if (next->status != ST_SUSPEND && next->status != ST_READY)
-        return;
-
-    zd_stack_push(&colib->back_stk, &colib->cur_coctx);
-    colib->cur_coctx->status = ST_SUSPEND;
-
-    struct zd_coctx *cur = colib->cur_coctx;
-    colib->cur_coctx = next;
-    colib->cur_coctx->status = ST_RUNNING;
-
-    zd_coctx_swap(cur, next);
-}
-
-ZD_DEF void zd_coctx_yield(struct zd_colib *colib)
-{
-    if (colib->cur_coctx->status != ST_RUNNING)
-        return;
-
-    colib->cur_coctx->status = ST_SUSPEND;
-    struct zd_coctx *cur = colib->cur_coctx;
-
-    struct zd_coctx *next = *(struct zd_coctx **) 
-        zd_stack_pop(&colib->back_stk);
-    assert(next != NULL);
-    colib->cur_coctx = next;
-    colib->cur_coctx->status = ST_RUNNING;
-
-    zd_coctx_swap(cur, next);
-}
-
-ZD_DEF void zd_coctx_finish(struct zd_colib *colib)
-{
-    colib->cur_coctx->status = ST_DEAD;
-    struct zd_coctx *cur = colib->cur_coctx;
-
-    struct zd_coctx *next = *(struct zd_coctx **) 
-        zd_stack_pop(&colib->back_stk);
-    assert(next != NULL);
-    colib->cur_coctx = next;
-    colib->cur_coctx->status = ST_RUNNING;
-
-    zd_coctx_swap(cur, next);
-}
-
-ZD_DEF void zd_coctx_collect(struct zd_colib *colib, struct zd_coctx *co)
-{
-    if (co->status != ST_DEAD)
-        return;
-    size_t off = co - (struct zd_coctx *) colib->coctxs.base;
-    if (off >= colib->coctxs.count)
-        return;
-    zd_dyna_remove(&colib->coctxs, off);
-}
-
-ZD_DEF size_t zd_coctx_alive(struct zd_colib *colib)
-{
-    struct zd_coctx *co_iter = NULL;
-    size_t alive = 0;
-
-    while ((co_iter = zd_dyna_next(&colib->coctxs)) != NULL) {
-        if (co_iter->status != ST_DEAD)
-            alive += 1;
-    }
-    colib->coctxs.pos = 0;
-
-    return alive;
-}
-
-ZD_DEF int zd_coctx_workid(struct zd_colib *colib)
-{
-    return colib->cur_coctx->id;
-}
-
-#endif /* platform */
-
-#endif /* ZD_COROUTINE */
-
-#ifdef ZD_DS_LINKED_LIST
-
-static struct zd_list_node *zd_list_create_node(void *elem, size_t size)
-{
-    struct zd_list_node *node = malloc(sizeof(struct zd_list_node));
-    assert(node != NULL);
-
-    node->data = malloc(size);
-    assert(node->data != NULL);
-    memcpy(node->data, elem, size);
-    node->next = NULL;
-
-    return node;
-}
-
-ZD_DEF void zd_list_append(struct zd_list *list, void *elem)
-{
-    struct zd_list_node *node = zd_list_create_node(elem, list->size);
-    struct zd_list_node *prev = &list->head, *cur = list->head.next;
-
-    for (size_t i = 0; i < list->count; i++) {
-        prev = cur;
-        cur = cur->next;
-    }
-
-    node->next = cur;
-    prev->next = node;
-
-    list->count++;
-}
-
-ZD_DEF void zd_list_insert(struct zd_list *list, size_t idx, void *elem)
-{
-    struct zd_list_node *node = zd_list_create_node(elem, list->size);
-    struct zd_list_node *prev = &list->head, *cur = list->head.next;
-
-    if (idx > list->count)
-        idx = list->count;
-
-    for (size_t i = 0; i < idx; i++) {
-        prev = cur;
-        cur = cur->next;
-    }
-
-    node->next = cur;
-    prev->next = node;
-
-    list->count++;
-}
-
-ZD_DEF void zd_list_remove(struct zd_list *list, size_t idx)
-{
-    if (idx >= list->count)
-        return;
-
-    struct zd_list_node *prev = &list->head, *cur = list->head.next;
-
-    for (size_t i = 0; i < idx; i++) {
-        prev = cur;
-        cur = cur->next;
-    }
-
-    prev->next = cur->next;
-
-    if (list->clear_item)
-        list->clear_item(cur->data);
-    free(cur->data);
-    cur->data = NULL;
-    cur->next = NULL;
-    free(cur);
-
-    list->count--;
-}
-
-ZD_DEF void *zd_list_get(struct zd_list *list, size_t idx)
-{
-    if (idx >= list->count)
-        return NULL;
-
-    struct zd_list_node *cur = list->head.next;
-
-    for (size_t i = 0; i < idx; i++)
-        cur = cur->next;
-
-    return cur->data;
-}
-
-ZD_DEF void zd_list_set(struct zd_list *list, size_t idx, void *elem)
-{
-    if (idx >= list->count)
-        return;
-
-    struct zd_list_node *cur = list->head.next, *prev = &list->head;
-
-    for (size_t i = 0; i < idx; i++) {
-        prev = cur;
-        cur = cur->next;
-    }
-
-    struct zd_list_node *node = zd_list_create_node(elem, list->size);
-    prev->next = node;
-    node->next = cur->next;
-
-    if (list->clear_item)
-        list->clear_item(cur->data);
-    free(cur->data);
-    cur->data = NULL;
-    cur->next = NULL;
-    free(cur);
-}
-
-ZD_DEF void zd_list_reverse(struct zd_list *list)
-{
-    struct zd_list_node *cur = list->head.next, *prev = NULL, *next;
-
-    while (cur) {
-        next = cur->next;
-        cur->next = prev;
-        prev = cur;
-        cur = next;  
-    }
-    list->head.next = prev;
-}
-
-ZD_DEF void zd_list_init(struct zd_list *list, size_t size,
-        void (*clear_item)(void *))
-{
-    list->head = (struct zd_list_node) {
-        .data = NULL,
-        .next = NULL
-    };
-    list->count = 0;
-    list->size = size;
-    list->clear_item = clear_item;
-}
-
-ZD_DEF void zd_list_destroy(struct zd_list *list)
-{
-    struct zd_list_node *cur = list->head.next, *next = NULL;
-    while (cur) {
-        next = cur->next;
-        if (list->clear_item)
-            list->clear_item(cur->data);
-        free(cur->data);
-        cur->data = NULL;
-        cur->next = NULL;
-        free(cur);
-        cur = next;
-    }
-
-    list->head = (struct zd_list_node) {0};
-    list->count = 0;
-    list->size = 0;
-    list->clear_item = NULL;
-}
-
-#endif /* ZD_DS_LINKED_LIST */
-
-#ifdef ZD_DS_HASH
-
-ZD_DEF void zd_htbl_init(struct zd_hash_tbl *htbl, size_t ksz, size_t vsz,
-        bool (*key_cmp)(void *k1, void *k2), size_t (*hash_func)(void *),
-        void (*key_free)(void *), void (*val_free)(void *))
-{
-
-    htbl->capacity = 1 / LOAD_TH_LOWER;
-    htbl->buckets = malloc(sizeof(struct zd_hash_node *) * htbl->capacity);
-    assert(htbl->buckets != NULL);
-    for (size_t i = 0; i < htbl->capacity; i++) {
-        htbl->buckets[i] = malloc(sizeof(struct zd_hash_node));
-        assert(htbl->buckets[i]);
-        htbl->buckets[i]->next = NULL;
-    }
-    htbl->load      = 0;
-    htbl->count     = 0;
-    htbl->key_size  = ksz;
-    htbl->val_size  = vsz;
-    htbl->key_cmp   = key_cmp;
-    htbl->hash_func = hash_func;
-    htbl->key_free  = key_free;
-    htbl->val_free  = val_free;
-}
-
-static struct zd_hash_node *zd_htbl_create_node(struct zd_hash_tbl *htbl,
-        void *key, void *val)
-{
-    struct zd_hash_node *node = malloc(sizeof(struct zd_hash_node));
-    assert(node != NULL);
-
-    node->key = malloc(htbl->key_size);
-    assert(node->key != NULL);
-    memcpy(node->key, key, htbl->key_size);
-    node->val = malloc(htbl->val_size);
-    assert(node->val != NULL);
-    memcpy(node->val, val, htbl->val_size);
-    node->next = NULL;
-
-    return node;
-}
-
-ZD_DEF void zd_htbl_resize(struct zd_hash_tbl *htbl, int mode)
-{
-    struct zd_hash_tbl new_ht = *htbl;
-    if (mode == HASH_EXPAND)
-        new_ht.capacity = htbl->capacity * 2;
-    else
-        new_ht.capacity = htbl->capacity / 2;
-    new_ht.load = 0;
-    new_ht.count = 0;
-    new_ht.buckets = malloc(sizeof(struct zd_hash_node *) * new_ht.capacity);
-    assert(new_ht.buckets);
-    for (size_t i = 0; i < new_ht.capacity; i++) {
-        new_ht.buckets[i] = malloc(sizeof(struct zd_hash_node));
-        assert(new_ht.buckets[i] != NULL);
-        new_ht.buckets[i]->next = NULL;
-    }
-
-    for (size_t i = 0; i < htbl->capacity; i++) {
-        struct zd_hash_node *cur = htbl->buckets[i]->next;
-        while (cur) {
-            zd_htbl_insert(&new_ht, cur->key, cur->val);
-            cur = cur->next;
-        }
-    }
-
-    struct zd_hash_tbl tmp_ht = *htbl;
-    *htbl = new_ht;
-
-    tmp_ht.key_free = NULL;
-    tmp_ht.val_free = NULL;
-    zd_htbl_destroy(&tmp_ht);
-}
-
-ZD_DEF void zd_htbl_insert(struct zd_hash_tbl *htbl, void *key, void *val)
-{
-    size_t idx = htbl->hash_func(key) % htbl->capacity;
-    struct zd_hash_node *cur = htbl->buckets[idx];
-    while (cur && cur->next)
-        cur = cur->next;
-
-    struct zd_hash_node *node = zd_htbl_create_node(htbl, key, val);
-
-    cur->next = node;
-    htbl->count++;
-
-    htbl->load = (float) htbl->count / (float) htbl->capacity;
-    if (htbl->load > LOAD_TH_UPPER)
-        zd_htbl_resize(htbl, HASH_EXPAND);
-}
-
-ZD_DEF bool zd_htbl_search(struct zd_hash_tbl *htbl, void *key)
-{
-    size_t idx = htbl->hash_func(key) % htbl->capacity;
-    struct zd_hash_node *cur = htbl->buckets[idx]->next;
-
-    while (cur) {
-        if (htbl->key_cmp(cur->key, key))
-            return true;
-        cur = cur->next;
-    }
-
-    return false;
-}
-
-static void zd_htbl_destroy_node(struct zd_hash_tbl *htbl,
-        struct zd_hash_node *node)
-{
-    if (htbl->key_free)
-        htbl->key_free(node->key);
-    if (htbl->val_free)
-        htbl->val_free(node->val);
-    free(node->key);
-    free(node->val);
-    node->next = NULL;
-    free(node);
-}
-
-ZD_DEF void zd_htbl_remove(struct zd_hash_tbl *htbl, void *key)
-{
-    if (zd_htbl_search(htbl, key) == false)
-        return;
-
-    size_t idx = htbl->hash_func(key) % htbl->capacity;
-    struct zd_hash_node *cur = htbl->buckets[idx]->next,
-                        *prev = htbl->buckets[idx];
-
-    while (cur) {
-        if (htbl->key_cmp(cur->key, key)) {
-            prev->next = cur->next;
-            zd_htbl_destroy_node(htbl, cur);
-            htbl->count--;
-            break;
-        }
-        prev = cur;
-        cur = cur->next;
-    }
-
-    htbl->load = (float) htbl->count / (float) htbl->capacity;
-    if (htbl->load < LOAD_TH_LOWER)
-        zd_htbl_resize(htbl, HASH_SHRINK);
-}
-
-ZD_DEF void zd_htbl_destroy(struct zd_hash_tbl *htbl)
-{
-    for (size_t i = 0; i < htbl->capacity; i++) {
-        struct zd_hash_node *cur = htbl->buckets[i]->next, *next = NULL;
-        while (cur) {
-            next = cur->next;
-            zd_htbl_destroy_node(htbl, cur);
-            cur = next;
-        }
-        free(htbl->buckets[i]);
-    }
-    if (htbl->buckets)
-        free(htbl->buckets);
-
-    htbl->buckets   = NULL;
-    htbl->load      = 0;
-    htbl->count     = 0;
-    htbl->capacity  = 0;
-    htbl->load      = 0;
-    htbl->key_size  = 0;
-    htbl->val_size  = 0;
-    htbl->key_cmp   = NULL;
-    htbl->hash_func = NULL;
-    htbl->key_free  = NULL;
-    htbl->val_free  = NULL;
-}
-
-ZD_DEF void *zd_htbl_get(struct zd_hash_tbl *htbl, void *key)
-{
-    size_t idx = htbl->hash_func(key) % htbl->capacity;
-    struct zd_hash_node *cur = htbl->buckets[idx]->next;
-
-    while (cur) {
-        if (htbl->key_cmp(cur->key, key))
-            return cur->val;
-        cur = cur->next;
-    }
-    return NULL;
-}
-
-ZD_DEF void zd_htbl_set(struct zd_hash_tbl *htbl, void *key, void *val)
-{
-    size_t idx = htbl->hash_func(key) % htbl->capacity;
-    struct zd_hash_node *cur = htbl->buckets[idx]->next;
-
-    while (cur) {
-        if (htbl->key_cmp(cur->key, key)) {
-            if (htbl->val_free)
-                htbl->val_free(cur->val);
-            memcpy(cur->val, val, htbl->val_size);
-            break;
-        }
-        cur = cur->next;
-    }
-}
-
-static inline size_t DJB_hash(const char *key, size_t key_len)
-{
-    size_t hash = 5381;
-    for (size_t i = 0; i < key_len; i++) {
-        hash = ((hash << 5) + hash) + key[i];
-    }
-    return hash;
-}
-
-static inline size_t SDBM_hash(const char *key, size_t key_len)
-{
-    size_t hash = 0;
-    for (size_t i = 0; i < key_len; i++) {
-        hash = key[i] + (hash << 6) + (hash << 16) - hash;
-    }
-    return hash;
-}
-
-static inline size_t int_hash(int key)
-{
-    size_t hash = (size_t) key;
-    hash = (hash + 0x7ed55d16) + (hash << 12);
-    hash = (hash ^ 0xc761c23c) ^ (hash >> 19);
-    hash = (hash + 0x165667b1) + (hash << 5);
-    hash = (hash + 0xd3a2646c) ^ (hash << 9);
-    hash = (hash + 0xfd7046c5) + (hash << 3);
-    hash = (hash ^ 0xb55a4f09) ^ (hash >> 16);
-    return hash;
-}
-
-static inline size_t float_hash(float key)
-{
-    size_t *ptr = (size_t *) &key;
-    size_t hash = *ptr;
-    hash = (hash + 0x7ed55d16) + (hash << 12);
-    hash = (hash ^ 0xc761c23c) ^ (hash >> 19);
-    hash = (hash + 0x165667b1) + (hash << 5);
-    hash = (hash + 0xd3a2646c) ^ (hash << 9);
-    hash = (hash + 0xfd7046c5) + (hash << 3);
-    hash = (hash ^ 0xb55a4f09) ^ (hash >> 16);
-    return hash;
-}
-
-#endif /* ZD_DS_HASH */
-
-#ifdef ZD_WILDCARD
+/* MODULE: ZD_WILDCARD */
 
 ZD_DEF bool zd_wildcard_match(const char *str, const char *pattern)
 {
@@ -3437,7 +2154,5 @@ ZD_DEF void zd_wildcard_capture(const char *str, const char *pattern,
     (void) start;
     (void) len;
 }
-
-#endif /* ZD_WILDCARD */
 
 #endif /* ZD_IMPLEMENTATION */

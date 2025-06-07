@@ -9,6 +9,10 @@ I haven’t spent too much time on error handling, so sometimes it’s just basi
 
 When using it, it's important to know what you're doing and make sure the parameters are valid.
 
+`zd.h` is the full version, containing all the functions and features. 
+
+On the other hand, `zd2.h` includes only the most commonly used functions, making it lighter and more suitable for projects with simpler requirements.
+
 ## Usage
 
 Example of using `zd_log`:

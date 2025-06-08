@@ -11,7 +11,7 @@ When using it, it's important to know what you're doing and make sure the parame
 
 `zd.h` is the full version, containing all the functions and features. 
 
-On the other hand, `zd2.h` includes only the most commonly used functions, making it lighter and more suitable for projects with simpler requirements.
+On the other hand, `zdr.h` includes only the most commonly used functions, making it lighter and more suitable for projects with simpler requirements.
 
 ## Usage
 

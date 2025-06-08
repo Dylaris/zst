@@ -1,4 +1,4 @@
-# zd
+# zst
 
 ## Brief
 `zst.h` is a single-header C library, which means `zero start`. 

@@ -1,7 +1,9 @@
 # zd
 
 ## Brief
-`zd` is a single-header C library. Simply copy this file into your project and define a few macros to enable the corresponding functions.
+`zst.h` is a single-header C library, which means `zero start`. 
+
+Simply copy this file into your project and define a few macros to enable the corresponding functions.
 
 However, keep in mind that this library is not focused on performance. It's designed for quick development of features. 
 
@@ -9,13 +11,7 @@ I haven’t spent too much time on error handling, so sometimes it’s just basi
 
 When using it, it's important to know what you're doing and make sure the parameters are valid.
 
-`zd.h` is the full version, containing all the functions and features. 
-
-On the other hand, `zdr.h` includes only the most commonly used functions, making it lighter and more suitable for projects with simpler requirements.
-
 ## Usage
-
-Example of using `zd_log`:
 
 ```console
 $ cd examples
@@ -33,7 +29,7 @@ For more usage examples, you can refer to the examples and the source code.
 
 ## Note
 
-Since `zd.h` implements a generic data structure, the elements you push into it must be pointers.
+Since `zst.h` implements a generic data structure, the elements you push into it must be pointers.
 
 For example, if you want to push an integer, you should pass an `int *`.
 

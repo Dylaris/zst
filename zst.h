@@ -220,6 +220,10 @@ typedef struct {
     size_t count;
 } zst_meta_dir_t;
 
+/* FIXME: zst_fs_copy can't copy a directory A to another directory B.
+   It just rename A to B (delete B) (the same to zst_fs_move). And also, 
+   it seems stuck into a loop when operating the directory which it stays. */
+
 ZST_DEF unsigned long long zst_fs_get_timestamp(const char *pathname);
 ZST_DEF char *zst_fs_get_name(const char *pathname);
 ZST_DEF bool zst_fs_pwd(char *buf, size_t buf_size);
@@ -1969,7 +1973,7 @@ ZST_DEF bool zst_wildcard_match(const char *str, const char *pattern)
     return dp[m][n];
 }
 
-#endif /* ZST_IMPLEMENTATION */
+#endif // ZST_IMPLEMENTATION
 
 #ifdef ZST_STRIP_OUT
 #define wc_match                zst_wildcard_match

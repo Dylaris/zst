@@ -17,10 +17,12 @@
  * '+' means you can use it in 'linux' and 'windows', otherwise only 'linux'
  *
  * + ZST_FORGER            Build the c project using only c 
+ * + ZST_PROCESS           Process operations
+ * + ZST_IO_REDIRECT       IO redirection
  * + ZST_LOG               Simple logging for information
- * + ZST_FS                Some operations about file and directory
+ * + ZST_FILE_SYSTEM       Some operations about file and directory
  * + ZST_WILDCARD          Wildcard ( '*', '?' )
- * + ZST_FLAG              Some operations about command line (flag, ...)
+ * + ZST_FLAG_PARSER       Some operations about command line (flag, ...)
  * + ZST_DS_DYNAMIC_ARRAY  Dynamic array
  * + ZST_DS_STRING         String
  * + ZST_DS_STACK          Stack
@@ -69,6 +71,7 @@ ZST_DEF bool zst_wildcard_match(const char *str, const char *pattern);
 ZST_DEF void zst_log(int type, const char *fmt, ...);
 
 /* MODULE: ZST_DS_DYNAMIC_ARRAY */
+
 typedef struct {
     void *base;
     size_t count;
@@ -158,35 +161,42 @@ ZST_DEF void *zst_queue_rear(zst_queue_t *queue);
 ZST_DEF void zst_queue_push(zst_queue_t *queue, void *elem);
 ZST_DEF void *zst_queue_pop(zst_queue_t *queue);
 
-/* MODULE: ZST_FS */
+
+/* MODULE: ZST_FILE_SYSTEM */
 
 #ifdef _WIN32
-  #include <windows.h>
-  #include <direct.h>
-  #include <fcntl.h>
-  #include <errno.h>
-  #include <io.h>
-  #include <sys/stat.h>
+#include <windows.h>
+#include <direct.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <io.h>
+#include <sys/stat.h>
 #else
-  #include <unistd.h>
-  #include <dirent.h>
-  #include <fcntl.h>
-  #include <errno.h>
-  #include <time.h>
-  #include <sys/stat.h>
-  #include <sys/types.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <time.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #endif // platform
 
+/* file type */
 #define FT_NOET 0    // not exist
 #define FT_REG  1    // regular file
 #define FT_DIR  2    // directory
 
+/* file attribute */
 #define FA_NONE  0
 #define FA_EXEC  (1 << 0)
 #define FA_READ  (1 << 1)
 #define FA_WRITE (1 << 2)
 
 #define FS_MAX_PATH_SIZE 1024
+
+#define ZST_INVALID_FD -1
+
+typedef int zst_fd_t;
 
 typedef struct {
     char *name;
@@ -210,8 +220,8 @@ ZST_DEF unsigned long long zst_fs_get_timestamp(const char *pathname);
 ZST_DEF char *zst_fs_get_name(const char *pathname);
 ZST_DEF bool zst_fs_pwd(char *buf, size_t buf_size);
 ZST_DEF bool zst_fs_cd(const char *pathname);
-ZST_DEF bool zst_fs_move(const char *src, const char *dest, bool is_binary);
-ZST_DEF bool zst_fs_copy(const char *src, const char *dest, bool is_binary);
+ZST_DEF bool zst_fs_move(const char *src, const char *dest);
+ZST_DEF bool zst_fs_copy(const char *src, const char *dest);
 ZST_DEF bool zst_fs_mkdir(const char *pathname);
 ZST_DEF bool zst_fs_touch(const char *pathname);
 ZST_DEF bool zst_fs_remove(const char *pathname);
@@ -221,15 +231,44 @@ ZST_DEF zst_dyna_t zst_fs_find(const char *pathname, int attrs);
 ZST_DEF zst_dyna_t zst_fs_match_recursively(const char *pathname, const char *pattern);
 ZST_DEF zst_dyna_t zst_fs_find_recursively(const char *pathname, int attrs);
 ZST_DEF int zst_fs_typeof(const char *pathname);
-ZST_DEF bool zst_fs_load_file(const char *filename, zst_meta_file_t *res, bool is_binary);
-ZST_DEF bool zst_fs_load_dir(const char *dirname, zst_meta_dir_t *res);
-ZST_DEF bool zst_fs_dump_file(const char *dest_file, const char *src_buf, size_t size, bool is_binary);
 ZST_DEF void zst_fs_free_meta_file(zst_meta_file_t *mf);
 ZST_DEF void zst_fs_free_meta_dir(zst_meta_dir_t *md);
 ZST_DEF int zst_fs_get_attr(const char *filename);
+ZST_DEF size_t zst_fs_get_size(const char *filename);
 ZST_DEF bool zst_fs_check_perm(const char *filename, int perm);
+ZST_DEF bool zst_fs_load_file(const char *filename, zst_meta_file_t *res);
+ZST_DEF bool zst_fs_dump_file(const char *dest_file, const char *src_buf, size_t size);
+ZST_DEF bool zst_fs_load_dir(const char *dirname, zst_meta_dir_t *res);
 
-/* MODULE: ZST_FLAG */
+#ifdef ZST_IMPLEMENTATION
+#ifdef _WIN32
+#define zst_fs_open_to_read(name)       _open((name), _O_RDONLY | _O_BINARY)
+#define zst_fs_open_to_write(name)      _open((name), _O_CREAT | _O_WRONLY | _O_BINARY, 0644)
+#define zst_fs_open_to_append(name)     _open((name), _O_CREAT | _O_APPEND | _O_WRONLY | _O_BINARY, 0644)
+#define zst_fs_close(fd)                _close(fd)
+#define zst_fs_read(fd, buffer, size)   _read((fd), (buffer), (size))
+#define zst_fs_write(fd, buffer, size)  _write((fd), (buffer), (size))
+#define zst_fs_redirect(from, to)       do { _dup2((from), (to)); _close(from); } while (0)
+#else
+#define zst_fs_open_to_read(name)       open((name), O_RDONLY)
+#define zst_fs_open_to_write(name)      open((name), O_CREAT | O_WRONLY, 0644)
+#define zst_fs_open_to_append(name)     open((name), O_CREAT | O_APPEND | O_WRONLY, 0644)
+#define zst_fs_close(fd)                close(fd)
+#define zst_fs_read(fd, buffer, size)   read((fd), (buffer), (size))
+#define zst_fs_write(fd, buffer, size)  write((fd), (buffer), (size))
+#define zst_fs_redirect(from, to)       do { dup2((from), (to)); close(from); } while (0)
+#endif // platform
+#else
+#define zst_fs_open_to_read(name)
+#define zst_fs_open_to_write(name)
+#define zst_fs_open_to_append(name)
+#define zst_fs_read(fd, buffer, size)
+#define zst_fs_write(fd, buffer, size)
+#define zst_fs_close(fd)
+#define zst_fs_redirect(from, to)
+#endif
+
+/* MODULE: ZST_FLAG_PARSER */
 
 typedef enum {
     FLAG_NO_ARG = 0,
@@ -263,7 +302,10 @@ ZST_DEF void zst_flag_init(zst_flag_t *flag);
 ZST_DEF void zst_flag_dump(zst_flag_t *flag, size_t level);
 ZST_DEF void zst_flag_free(void *arg);
 
-/* MODULE: ZST_BUILD */
+/* MODULE: ZST_PROCESS */
+
+
+/* MODULE: ZST_FORGER */
 
 typedef enum {
     EXEC_UNDO = 0,
@@ -323,7 +365,7 @@ ZST_DEF int zst_forger_run_sync(zst_forger_t *forger);
 
 #ifdef ZST_IMPLEMENTATION
 
-/* MODULE: ZST_COMMAND_LINE */
+/* MODULE: ZST_FLAG_PARSER */
 
 ZST_DEF void zst_cmdline_dump(zst_cmdline_t *cmdl)
 {
@@ -565,7 +607,7 @@ ZST_DEF void zst_flag_free(void *arg)
     zst_string_free(&flag->info);
 }
 
-/* MODULE: ZST_FS */
+/* MODULE: ZST_FILE_SYSTEM */
 
 static inline int count_line(char *buf, size_t size)
 {
@@ -612,7 +654,7 @@ ZST_DEF unsigned long long zst_fs_get_timestamp(const char *pathname)
     }
 
     timestamp = (unsigned long long) sb.st_mtime;
-#endif /* platform */
+#endif // platform
 
     return timestamp;
 }
@@ -622,12 +664,19 @@ ZST_DEF char *zst_fs_get_name(const char *pathname)
     if (!pathname) return NULL;
 
 #ifdef _WIN32
-    char *filename = strrchr(pathname, '\\');
+    char delim = '\\';
 #else
-    char *filename = strrchr(pathname, '/');
+    char delim = '/';
 #endif // platform
 
-    if (filename) return filename + 1;
+    size_t len = strlen(pathname);
+    char buf[len + 1];
+    snprintf(buf, sizeof(buf), "%s", pathname);
+
+    if (buf[len - 1] == delim) buf[len - 1] = '\0';
+
+    char *pos = strrchr(buf, delim);
+    if (pos) return (char *) pathname + (pos - buf + 1);
     return (char *) pathname;
 }
 
@@ -657,14 +706,12 @@ ZST_DEF bool zst_fs_cd(const char *pathname)
 #endif // platform
 }
 
-ZST_DEF bool zst_fs_move(const char *src, const char *dest, bool is_binary)
+ZST_DEF bool zst_fs_move(const char *src, const char *dest)
 {
-    if (zst_fs_typeof(src) != FT_REG) return false;
-
-    if (!zst_fs_copy(src, dest, is_binary) || !zst_fs_remove(src)) {
-        return false;
+    if (zst_fs_copy(src, dest) && zst_fs_remove(src)) {
+        return true;
     }
-    return true;
+    return false;
 }
 
 ZST_DEF bool zst_fs_remove_all(zst_dyna_t *files)
@@ -677,10 +724,8 @@ ZST_DEF bool zst_fs_remove_all(zst_dyna_t *files)
     return status;
 }
 
-ZST_DEF bool zst_fs_copy(const char *src, const char *dest, bool is_binary)
+static bool copy_file_(const char *src, const char *dest)
 {
-    if (zst_fs_typeof(src) != FT_REG) return false;
-
     char dest_path[FS_MAX_PATH_SIZE];
     if (zst_fs_typeof(dest) == FT_NOET) {
         if (dest[strlen(dest) - 1] == '\\' || dest[strlen(dest) - 1] == '/')
@@ -695,13 +740,71 @@ ZST_DEF bool zst_fs_copy(const char *src, const char *dest, bool is_binary)
     }
 
     zst_meta_file_t mf = {0};
-    if (!zst_fs_load_file(src, &mf, is_binary)) return false;
-    if (!zst_fs_dump_file(dest_path, mf.content, mf.size, is_binary)) {
+    if (!zst_fs_load_file(src, &mf)) return false;
+    if (!zst_fs_dump_file(dest_path, mf.content, mf.size)) {
         zst_fs_free_meta_file(&mf);
         return false;
     }
     zst_fs_free_meta_file(&mf);
     return true;
+}
+
+static bool copy_dir_recursively_(const char *src, const char *dest)
+{
+#define return_defer(code) do { status = code; goto defer; } while (0)
+
+    bool status = true;
+
+    if (!zst_fs_remove(dest)) {
+        zst_log(LOG_ERROR, "could not remove the directory '%s'", dest);
+        return false;
+    }
+    if (!zst_fs_mkdir(dest)) {
+        zst_log(LOG_ERROR, "could not create the directory '%s'", dest);
+        return false;
+    }
+
+    char dest_path[FS_MAX_PATH_SIZE + 1];
+    size_t len = strlen(dest);
+
+    zst_meta_dir_t md = {0};
+    zst_fs_load_dir(src, &md);
+
+    for (size_t i = 0; i < md.f_cnt; i++) {
+        snprintf(dest_path, sizeof(dest_path), "%s/%s", dest, zst_fs_get_name(md.files[i]));
+        if (!copy_file_(md.files[i], dest_path)) return_defer(false);
+        dest_path[len] = '\0';
+    }
+
+    for (size_t i = 0; i < md.d_cnt; i++) {
+        snprintf(dest_path, sizeof(dest_path), "%s/%s", dest, zst_fs_get_name(md.dirs[i]));
+        if (!copy_dir_recursively_(md.dirs[i], dest_path)) return_defer(false);
+        dest_path[len] = '\0';
+    }
+
+defer:
+    zst_fs_free_meta_dir(&md);
+    return status;
+
+#undef return_defer
+}
+
+ZST_DEF bool zst_fs_copy(const char *src, const char *dest)
+{
+    int src_type = zst_fs_typeof(src);
+    int dest_type = zst_fs_typeof(dest);
+
+    if (src_type == FT_NOET) {
+        zst_log(LOG_ERROR, "source file to be copied is not exist");
+        return false;
+    }
+    if (src_type == FT_DIR && dest_type == FT_REG) {
+        zst_log(LOG_ERROR, "not compatible file type to copy");
+        return false;
+    }
+
+    if (src_type == FT_DIR) return copy_dir_recursively_(src, dest);
+    else return copy_file_(src, dest);
 }
 
 ZST_DEF bool zst_fs_mkdir(const char *pathname)
@@ -1040,8 +1143,12 @@ ZST_DEF bool zst_fs_load_dir(const char *dirname, zst_meta_dir_t *res)
 #endif // platform
 }
 
-ZST_DEF bool zst_fs_load_file(const char *filename, zst_meta_file_t *res, bool is_binary)
+ZST_DEF bool zst_fs_load_file(const char *filename, zst_meta_file_t *res)
 {
+#define return_defer(code) do { status = code; goto defer; } while (0) 
+
+    int status = 0;
+
     if (!filename) return false;
 
     res->type = zst_fs_typeof(filename);
@@ -1050,42 +1157,28 @@ ZST_DEF bool zst_fs_load_file(const char *filename, zst_meta_file_t *res, bool i
     res->name = strdup(filename);
     assert(res->name != NULL);
 
-    char *mode = is_binary ? "rb" : "r";
-    FILE *fp = fopen(filename, mode);
-    if (!fp) return false;
+    zst_fd_t fd = zst_fs_open_to_read(filename);
+    if (fd == ZST_INVALID_FD) return_defer(-1);
 
-    long saved_offset = ftell(fp);
-    fseek(fp, 0, SEEK_END);
-    res->size = (size_t) ftell(fp);
-    fseek(fp, saved_offset, SEEK_SET);
-
-    if (res->size == 0) {
-        fclose(fp);
-        return true;
-    }
+    res->size = zst_fs_get_size(filename);
+    if (res->size == 0) return_defer(-1);
 
     res->content = malloc(res->size + 1);    
     assert(res->content != NULL);
 
-#ifdef _WIN32
-    /* \r\n */
-    fread(res->content, 1, res->size, fp);
-#else
-    size_t read_size = fread(res->content, 1, res->size, fp);
-    if (read_size != res->size) {
-        fclose(fp);
-        free(res->content);
-        res->content = NULL;
-        return false;
-    }
-#endif // platform
+    size_t read_size = zst_fs_read(fd, res->content, res->size);
+    if (read_size != res->size) return_defer(-1);
 
     res->content[res->size] = '\0';
     res->line = count_line(res->content, res->size);
     res->attr = zst_fs_get_attr(filename);
 
-    fclose(fp);
-    return true;
+defer:
+    if (status == -1) zst_fs_free_meta_file(res);
+    if (fd != ZST_INVALID_FD) zst_fs_close(fd);
+    return status == 0;
+
+#undef return_defer
 }
 
 ZST_DEF void zst_fs_free_meta_file(zst_meta_file_t *mf)
@@ -1098,6 +1191,28 @@ ZST_DEF void zst_fs_free_meta_file(zst_meta_file_t *mf)
     mf->type = FT_NOET;
     mf->size = 0;
     mf->line = 0;
+}
+
+ZST_DEF size_t zst_fs_get_size(const char *filename)
+{
+#ifdef _WIN32
+    WIN32_FILE_ATTRIBUTE_DATA fileInfo;
+    if (GetFileAttributesEx(filename, GetFileExInfoStandard, &fileInfo) == 0) {
+        zst_log(LOG_ERROR, "failed to get file size");
+        return 0;
+    }
+    LARGE_INTEGER fileSize;
+    fileSize.LowPart = fileInfo.nFileSizeLow;
+    fileSize.HighPart = fileInfo.nFileSizeHigh;
+    return (size_t) fileSize.QuadPart;
+#else
+    struct stat st;
+    if (stat(filename, &st) == -1) {
+        zst_log(LOG_ERROR, "failed to get file size");
+        return 0;
+    }
+    return (size_t) st.st_size;
+#endif // platform
 }
 
 ZST_DEF int zst_fs_get_attr(const char *filename)
@@ -1161,20 +1276,23 @@ ZST_DEF void zst_fs_free_meta_dir(zst_meta_dir_t *md)
     md->count = 0;
 }
 
-ZST_DEF bool zst_fs_dump_file(const char *dest_file, const char *src_buf, size_t size, bool is_binary)
+ZST_DEF bool zst_fs_dump_file(const char *dest_file, const char *src_buf, size_t size)
 {
-    char *mode = is_binary ? "wb" : "w";
-    FILE *fp = fopen(dest_file, mode);
-    if (!fp) return false;
+#define return_defer(code) do { status = code; goto defer; } while (0)
 
-    size_t write_size = fwrite(src_buf, 1, size, fp);
-    if (write_size != size) {
-        fclose(fp);
-        return false;
-    }
+    bool status = true;
 
-    fclose(fp);
-    return true;
+    zst_fd_t fd = zst_fs_open_to_write(dest_file);
+    if (fd == ZST_INVALID_FD) return false;
+
+    size_t write_size = zst_fs_write(fd, src_buf, size);
+    if (write_size != size) return_defer(false);
+
+defer:
+    zst_fs_close(fd);
+    return status;
+
+#undef return_defer
 }
 
 /* MODULE: ZST_DS_DYNAMIC_ARRAY */
@@ -1605,7 +1723,7 @@ ZST_DEF void zst_log(int type, const char *fmt, ...)
     if (is_exit) exit(EXIT_FAILURE);
 }
 
-/* MODULE: ZST_BUILD */
+/* MODULE: ZST_FORGER */
 
 static void zst_cmd_append_arg_(zst_cmd_t *cmd, ...)
 {
@@ -1705,10 +1823,10 @@ static void zst_forger_update_self_(const char *cc, int argc,
     /* backup */
     zst_string_t src = {0};
     zst_string_append(&src, "%s.old", source);
-    zst_fs_copy(source, src.base, false);
+    zst_fs_copy(source, src.base);
     zst_string_t exe = {0};
     zst_string_append(&exe, "%s.old", argv[0]);
-    zst_fs_copy(argv[0], exe.base, true);
+    zst_fs_copy(argv[0], exe.base);
 
     zst_cmd_t cmd = {0};
     zst_cmd_init(&cmd);
@@ -1736,8 +1854,8 @@ static void zst_forger_update_self_(const char *cc, int argc,
 
     if (zst_cmd_run(&cmd) != 0) {
         /* restore and report error */
-        zst_fs_move(src.base, source, false);
-        zst_fs_move(exe.base, argv[0], true);
+        zst_fs_move(src.base, source);
+        zst_fs_move(exe.base, argv[0]);
         zst_log(LOG_FATAL, "failed to update self");
     }
 
@@ -1874,6 +1992,7 @@ ZST_DEF bool zst_wildcard_match(const char *str, const char *pattern)
 #define fs_get_timestamp        zst_fs_get_timestamp
 #define fs_get_name             zst_fs_get_name
 #define fs_get_attr             zst_fs_get_attr
+#define fs_get_size             zst_fs_get_size
 #define fs_check_perm           zst_fs_check_perm
 #define fs_pwd                  zst_fs_pwd
 #define fs_cd                   zst_fs_cd
@@ -1893,6 +2012,13 @@ ZST_DEF bool zst_wildcard_match(const char *str, const char *pattern)
 #define fs_dump_file            zst_fs_dump_file
 #define fs_free_meta_file       zst_fs_free_meta_file
 #define fs_free_meta_dir        zst_fs_free_meta_dir
+#define fs_open_to_read         zst_fs_open_to_read
+#define fs_open_to_write        zst_fs_open_to_write
+#define fs_open_to_append       zst_fs_open_to_append
+#define fs_close                zst_fs_close
+#define fs_read                 zst_fs_read
+#define fs_write                zst_fs_write
+#define fs_redirect             zst_fs_redirect
 #define cmdline_init            zst_cmdline_init
 #define cmdline_define_flag     zst_cmdline_define_flag
 #define cmdline_parse           zst_cmdline_parse

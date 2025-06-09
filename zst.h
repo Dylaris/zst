@@ -131,9 +131,9 @@ ZST_DEF void zst_stack_free(zst_stack_t *stk);
 
 /* MODULE: ZST_DS_QUEUE */
 
-typedef zst_queue_node_t {
+typedef struct zst_queue_node {
     void *data;
-    zst_queue_node_t *next;
+    struct zst_queue_node *next;
 } zst_queue_node_t;
 
 typedef struct {
@@ -240,7 +240,7 @@ typedef enum {
 
 typedef struct {
     bool isused;
-    zst_flat_type_t type;
+    zst_flag_type_t type;
     zst_string_t name;
     zst_dyna_t vals;
     zst_string_t info;
@@ -252,14 +252,14 @@ typedef struct {
 } zst_cmdline_t;
 
 ZST_DEF void zst_cmdline_init(zst_cmdline_t *cmdl);
-ZST_DEF void zst_cmdline_define_flag(zst_cmdline_t *cmdl, zst_flat_t *flag);
+ZST_DEF void zst_cmdline_define_flag(zst_cmdline_t *cmdl, zst_flag_type_t type, const char *name, const char *info);
 ZST_DEF void zst_cmdline_parse(zst_cmdline_t *cmdl, int argc, char **argv);
 ZST_DEF void zst_cmdline_usage(zst_cmdline_t *cmdl);
 ZST_DEF bool zst_cmdline_isuse(zst_cmdline_t *cmdl, const char *flagname);
 ZST_DEF zst_flag_t *zst_cmdline_get_flag(zst_cmdline_t *cmdl, const char *flagname);
 ZST_DEF void zst_cmdline_free(void *arg);
 ZST_DEF void zst_cmdline_dump(zst_cmdline_t *cmdl);
-ZST_DEF void zst_flag_init(zst_flag_t *flag, zst_flag_type_t type, const char *name, const char *info);
+ZST_DEF void zst_flag_init(zst_flag_t *flag);
 ZST_DEF void zst_flag_dump(zst_flag_t *flag, size_t level);
 ZST_DEF void zst_flag_free(void *arg);
 
@@ -368,7 +368,7 @@ ZST_DEF void zst_flag_dump(zst_flag_t *flag, size_t level)
 
     fprintf(stderr, "%s<name>: %s\n", indent.base, flag->name.base);
     fprintf(stderr, "%s<type>: %s\n", indent.base, type_str);
-    fprintf(stderr, "%s<used>: %s\n", indent.base, falg->isused ? "true" : "false");
+    fprintf(stderr, "%s<used>: %s\n", indent.base, flag->isused ? "true" : "false");
 
     if (flag->vals.count > 0) {
         fprintf(stderr, "%s<vals>:\n", indent.base);
@@ -383,27 +383,34 @@ ZST_DEF void zst_flag_dump(zst_flag_t *flag, size_t level)
     zst_string_free(&indent);
 }
 
-ZST_DEF void zst_flag_init(zst_flag_t *flag, zst_flag_type_t type, const char *name, const char *info)
+ZST_DEF void zst_flag_init(zst_flag_t *flag)
 {
-    if (type < 0 || type > NR_FLAG || !name) return;
+    if (!flag) return;
 
     flag->isused = false;
-    flag->type = type;
-    zst_string_append(flag->name, name);
+    flag->type = FLAG_NO_ARG;
+    flag->name = (zst_string_t) {0};
+    flag->info = (zst_string_t) {0};
     zst_dyna_init(&flag->vals, sizeof(zst_string_t), zst_string_free);
-    zst_string_append(flag->info, info);
 }
 
 ZST_DEF void zst_cmdline_init(zst_cmdline_t *cmdl)
 {
     cmdl->prog = (zst_string_t) {0};
     zst_dyna_init(&cmdl->flags, sizeof(zst_flag_t), zst_flag_free);
-    zst_dyna_init(&cmdl->rules, sizeof(zst_flag_t), zst_flag_free);
 }
 
-ZST_DEF void zst_cmdline_define_flag(zst_cmdline_t *cmdl, zst_flag_t *flag)
+ZST_DEF void zst_cmdline_define_flag(zst_cmdline_t *cmdl, zst_flag_type_t type, const char *name, const char *info)
 {
-    if (!flag) return;
+    if (type < 0 || type > NR_FLAG || !name) return;
+
+    zst_flag_t flag = {0};
+    zst_flag_init(&flag);
+
+    flag.type = type;
+    zst_string_append(&flag.name, name);
+    zst_string_append(&flag.info, info);
+
     zst_dyna_append(&cmdl->flags, &flag);
 }
 
@@ -421,7 +428,7 @@ ZST_DEF zst_flag_t *zst_cmdline_get_flag(zst_cmdline_t *cmdl, const char *flagna
 {
     for (size_t i = 0; i < cmdl->flags.count; i++) {
         zst_flag_t *flag = zst_dyna_get(&cmdl->flags, i);
-        if (strcmp(flagname, flag->name) == 0) return flag;
+        if (strcmp(flagname, flag->name.base) == 0) return flag;
     }
 
     return NULL;
@@ -430,7 +437,7 @@ ZST_DEF zst_flag_t *zst_cmdline_get_flag(zst_cmdline_t *cmdl, const char *flagna
 static inline int skip_values_(int pos, char **argv)
 {
     while (argv[pos]) {
-        if (argv[pos][0] == '-')) break;
+        if (argv[pos][0] == '-') break;
         pos++;
     }
     return pos;
@@ -447,17 +454,22 @@ ZST_DEF void zst_cmdline_parse(zst_cmdline_t *cmdl, int argc, char **argv)
     while (pos < argc) {
         const char *p1 = skip_dash_(argv[pos]);
         if (!p1) {
-            pos = skip_values(pos + 1, argv);
+            pos = skip_values_(pos + 1, argv);
             continue;
         }
         const char *p2 = strchr(p1, '=');
         bool has_equal = (p2 != NULL);
 
-        zst_string_t flagname = zst_string_sub(p1, 0, p2 - p1);
-        zst_flag_t *flag = zst_cmdline_get_flag(cmdl, flagname);
+        zst_string_t flagname = {0};
+        if (has_equal) {
+            flagname = zst_string_sub(p1, 0, p2 - p1);
+        } else {
+            zst_string_append(&flagname, p1);
+        }
+        zst_flag_t *flag = zst_cmdline_get_flag(cmdl, flagname.base);
+        zst_string_free(&flagname);
         if (!flag) {
-            zst_string_free(&flagname);
-            pos = skip_values(pos + 1, argv);
+            pos = skip_values_(pos + 1, argv);
             continue;
         }
 
@@ -476,7 +488,7 @@ ZST_DEF void zst_cmdline_parse(zst_cmdline_t *cmdl, int argc, char **argv)
                 zst_dyna_append(&flag->vals, &val);
             }
 
-            pos = skip_values(pos + 1, argv);
+            pos = skip_values_(pos + 1, argv);
         } else { 
             pos++; // skip the current flag
 
@@ -500,7 +512,7 @@ ZST_DEF void zst_cmdline_parse(zst_cmdline_t *cmdl, int argc, char **argv)
                 pos = skip_values_(pos, argv);
                 break;
 
-            case flagT_MULTI_ARG:
+            case FLAG_MULTI_ARG:
                 while (pos < argc) {
                     if (argv[pos][0] == '-') break;
                     val = (zst_string_t) {0};
@@ -520,7 +532,7 @@ ZST_DEF void zst_cmdline_parse(zst_cmdline_t *cmdl, int argc, char **argv)
 
 ZST_DEF void zst_cmdline_usage(zst_cmdline_t *cmdl)
 {
-    fprintf(stderr, "Usage: %s ...\n", cmdl->program.base);
+    fprintf(stderr, "Usage: %s ...\n", cmdl->prog.base);
     for (size_t i = 0; i < cmdl->flags.count; i++) {
         zst_flag_t *flag = zst_dyna_get(&cmdl->flags, i);
         fprintf(stderr, "  %-10s %s\n", flag->name.base, flag->info.base);
@@ -531,7 +543,7 @@ ZST_DEF bool zst_cmdline_isuse(zst_cmdline_t *cmdl, const char *flagname)
 {
     if (!flagname) return false;
 
-    zst_flag_t *flag = zst_cmdline_get_flag(&cmdl, flagname);
+    zst_flag_t *flag = zst_cmdline_get_flag(cmdl, flagname);
     if (!flag) return false;
     return flag->isused;
 }
@@ -1076,7 +1088,7 @@ ZST_DEF bool zst_fs_load_file(const char *filename, zst_meta_file_t *res, bool i
     return true;
 }
 
-ZST_DEF void zst_fs_free_meta_file(struct zst_meta_file *mf)
+ZST_DEF void zst_fs_free_meta_file(zst_meta_file_t *mf)
 {
     if (mf->name) free(mf->name);
     if (mf->content) free(mf->content);
@@ -1121,7 +1133,7 @@ ZST_DEF bool zst_fs_check_perm(const char *filename, int perm)
     return zst_fs_get_attr(filename) & perm;
 }
 
-ZST_DEF void zst_fs_free_meta_dir(struct zst_meta_dir *md)
+ZST_DEF void zst_fs_free_meta_dir(zst_meta_dir_t *md)
 {
     if (md->name) free(md->name);
     if (md->files) {
@@ -1149,7 +1161,7 @@ ZST_DEF void zst_fs_free_meta_dir(struct zst_meta_dir *md)
     md->count = 0;
 }
 
-ZST_DEF bool zst_fs_dumpf(const char *dest_file, const char *src_buf, size_t size, bool is_binary)
+ZST_DEF bool zst_fs_dump_file(const char *dest_file, const char *src_buf, size_t size, bool is_binary)
 {
     char *mode = is_binary ? "wb" : "w";
     FILE *fp = fopen(dest_file, mode);
@@ -1912,9 +1924,9 @@ typedef zst_queue_t             queue_t;
 typedef zst_meta_file_t         meta_file_t;
 typedef zst_meta_dir_t          meta_dir_t;
 typedef zst_flag_t              flag_t;
-typedef zst_flag_type_t         flat_type_t;
+typedef zst_flag_type_t         flag_type_t;
 typedef zst_cmdline_t           cmdline_t;
 typedef zst_cmd_t               cmd_t;
-typedef zst_forger_t           forger_t;
+typedef zst_forger_t            forger_t;
 
 #endif // ZST_STRIP_OUT

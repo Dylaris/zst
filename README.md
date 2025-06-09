@@ -1,44 +1,31 @@
 # zst
 
 ## Brief
-`zst.h` is a single-header C library, which means `zero start`. 
 
-Simply copy this file into your project and define a few macros to enable the corresponding functions.
+`zst.h` is a single-header C library for building C projects, inspired by the `tsoding/nobuild` project. 
 
-However, keep in mind that this library is not focused on performance. It's designed for quick development of features. 
+The name "zst" stands for "zero start", meaning it’s designed for environments without build tools like Makefile. It gives you the feeling of starting from scratch, where all you need is a good C compiler to build a C project.
 
-I haven’t spent too much time on error handling, so sometimes it’s just basic assertions. 
+To use `zst`, you should be comfortable with C and writing "C scripts" (similar to shell scripts, but with more type checks and memory management).
 
-When using it, it's important to know what you're doing and make sure the parameters are valid.
+`zst` works on both Windows and Linux, offering a unified API for easier project portability.
+
+## Features
+
+- **`zst_forger`**: A build tool, named "forger".
+
+- **`zst_flag`**: A command-line flag parser.
+
+- **`zst_fs`**: File system operations.
+
+- **`zst_ds`**: Data structures, including +=dynamic array=+, +=string=+, +=stack=+, and +=queue=+.
 
 ## Usage
 
 ```console
-$ cd examples
-$ gcc -I ../ build.c
-$ ./a.out --help
-$ ./a.out --compile
-$ ./log
-[ERROR] This is error message
-[INFO] This is info message
-[GOOD] This is ok message
-$ ./a.out --clean
+$ cd examples/hello
+$ gcc -o build build.c -I ../..
+$ ./build
+$ ./hello
+hello world
 ```
-
-For more usage examples, you can refer to the examples and the source code.
-
-## Note
-
-Since `zst.h` implements a generic data structure, the elements you push into it must be pointers.
-
-For example, if you want to push an integer, you should pass an `int *`.
-
-Because strings are not of fixed length, they cannot be directly used as elements in these generic data structures.
-
-Therefore, we use `char **` as the element type for the data structure, which points to the string.
-
-Since what we actually intend to push into the data structure is `char **`, we need to pass `char ***`.
-
-If you find this approach too complex, you can treat `struct zd_string` as just a wrapper around `char *`. 
-
-You don't have to use the full `struct zd_string` API; you can use it just like a `char *` without any difference.

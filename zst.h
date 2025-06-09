@@ -16,7 +16,7 @@
  *
  * '+' means you can use it in 'linux' and 'windows', otherwise only 'linux'
  *
- * + ZST_BUILD             Build the c project using only c 
+ * + ZST_FORGER            Build the c project using only c 
  * + ZST_LOG               Simple logging for information
  * + ZST_FS                Some operations about file and directory
  * + ZST_WILDCARD          Wildcard ( '*', '?' )

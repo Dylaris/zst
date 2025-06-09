@@ -8,7 +8,11 @@
 #include "zst.h"
 
 #define CC      "gcc"
+#ifdef _WIN32
+#define TARGET  "hello.exe"
+#else
 #define TARGET  "hello"
+#endif
 
 static void add_compile_flags(cmd_t *cmd)
 {

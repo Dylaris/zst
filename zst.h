@@ -198,6 +198,10 @@ ZST_DEF void *zst_queue_pop(zst_queue_t *queue);
 
 typedef int zst_fd_t;
 
+#define ZST_STDIN  0
+#define ZST_STDOUT 1
+#define ZST_STDERR 2
+
 typedef struct {
     char *name;
     char *content;
@@ -1080,20 +1084,26 @@ ZST_DEF bool zst_fs_load_dir(const char *dirname, zst_meta_dir_t *res)
                 strcmp(findFileData.cFileName, "..") == 0)
             continue;
 
+        size_t len = strlen(dirname) + strlen(findFileData.cFileName) + 2;
+        char *full_path = (char *) malloc(len);
+        if (!has_slash) snprintf(full_path, len, "%s\\%s", dirname, findFileData.cFileName);
+        else snprintf(full_path, len, "%s%s", dirname, findFileData.cFileName);
+
         if (findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
             res->dirs = realloc(res->dirs, sizeof(char *) * (res->d_cnt + 1));
             assert(res->dirs != NULL);
-            res->dirs[res->d_cnt] = strdup(findFileData.cFileName);
+            res->dirs[res->d_cnt] = strdup(full_path);
             assert(res->dirs[res->d_cnt] != NULL);
             res->d_cnt++;
         } else {
             res->files = realloc(res->files, sizeof(char *) * (res->f_cnt + 1));
             assert(res->files != NULL);
-            res->files[res->f_cnt] = strdup(findFileData.cFileName);
+            res->files[res->f_cnt] = strdup(full_path);
             assert(res->files[res->f_cnt] != NULL);
             res->f_cnt++;
         }
 
+        free(full_path);
         res->count++;
     } while (FindNextFile(hFind, &findFileData));
 
@@ -2054,5 +2064,6 @@ typedef zst_flag_type_t         flag_type_t;
 typedef zst_cmdline_t           cmdline_t;
 typedef zst_cmd_t               cmd_t;
 typedef zst_forger_t            forger_t;
+typedef zst_fd_t                fd_t;
 
 #endif // ZST_STRIP_OUT

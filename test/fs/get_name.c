@@ -1,5 +1,5 @@
-#define ZST_IMPLEMENTATION
-#include "zst.h"
+#define ZST_FS_IMPLEMENTATION
+#include "zst_fs.h"
 
 int main(void)
 {

@@ -86,21 +86,22 @@ typedef struct {
 static bool zst__wildcard_match(const char *str, const char *pattern);
 void zst_filearr_append(zst_filearr_t *arr, const char *item);
 void zst_filearr_free(zst_filearr_t *arr);
-size_t zst_fs_get_timestamp(const char *pathname);
-char *zst_fs_get_name(const char *pathname);
+size_t zst_fs_get_timestamp(const char *path);
+char *zst_fs_get_basename(const char *path);
+char *zst_fs_get_dirname(const char *path);
 bool zst_fs_pwd(char *buf, size_t buf_size);
-bool zst_fs_cd(const char *pathname);
+bool zst_fs_cd(const char *path);
 bool zst_fs_move(const char *src, const char *dest);
 bool zst_fs_copy(const char *src, const char *dest);
-bool zst_fs_mkdir(const char *pathname);
-bool zst_fs_touch(const char *pathname);
-bool zst_fs_remove(const char *pathname);
+bool zst_fs_mkdir(const char *path);
+bool zst_fs_touch(const char *path);
+bool zst_fs_remove(const char *path);
 bool zst_fs_remove_all(zst_filearr_t *items);
-zst_filearr_t zst_fs_match(const char *pathname, const char *pattern);
-zst_filearr_t zst_fs_find(const char *pathname, int attrs);
-zst_filearr_t zst_fs_match_recursively(const char *pathname, const char *pattern);
-zst_filearr_t zst_fs_find_recursively(const char *pathname, int attrs);
-int zst_fs_typeof(const char *pathname);
+zst_filearr_t zst_fs_match(const char *path, const char *pattern);
+zst_filearr_t zst_fs_find(const char *path, int attrs);
+zst_filearr_t zst_fs_match_recursively(const char *path, const char *pattern);
+zst_filearr_t zst_fs_find_recursively(const char *path, int attrs);
+int zst_fs_typeof(const char *path);
 void zst_fs_free_meta_file(zst_meta_file_t *mf);
 void zst_fs_free_meta_dir(zst_meta_dir_t *md);
 int zst_fs_get_attr(const char *filename);
@@ -170,15 +171,15 @@ static inline int count_line(char *buf, size_t size)
     return count;
 }
 
-size_t zst_fs_get_timestamp(const char *pathname)
+size_t zst_fs_get_timestamp(const char *path)
 {
-    assert(pathname != NULL);
+    assert(path != NULL);
 
     size_t timestamp = 0;
-    if (zst_fs_typeof(pathname) == FT_NOET) return 0;
+    if (zst_fs_typeof(path) == FT_NOET) return 0;
 
 #ifdef _WIN32
-    HANDLE hFile = CreateFile(pathname, GENERIC_READ, FILE_SHARE_READ,
+    HANDLE hFile = CreateFile(path, GENERIC_READ, FILE_SHARE_READ,
                               NULL, OPEN_EXISTING, 0, NULL);
     if (hFile == INVALID_HANDLE_VALUE) {
         perror("failed to open file");
@@ -202,7 +203,7 @@ size_t zst_fs_get_timestamp(const char *pathname)
     CloseHandle(hFile);
 #else
     struct stat sb;
-    if (stat(pathname, &sb) == -1) {
+    if (stat(path, &sb) == -1) {
         perror("failed to get file stats");
         return 0;
     }
@@ -213,9 +214,34 @@ size_t zst_fs_get_timestamp(const char *pathname)
     return timestamp;
 }
 
-char *zst_fs_get_name(const char *pathname)
+char *zst_fs_get_dirname(const char *path)
 {
-    assert(pathname != NULL);
+    assert(path != NULL);
+
+    char *basename = zst_fs_get_basename(path);
+    assert(basename != NULL);
+
+    size_t len = strlen(path) - strlen(basename);
+    char *res;
+    if (len == 0) {
+        res = malloc(2);
+        assert(res != NULL);
+        res[0] = '.';
+        res[1] = '\0';
+    } else {
+        res = malloc(len + 1);
+        assert(res != NULL);
+        strncpy(res, path, len);
+        res[len] = '\0';
+    }
+
+    free(basename);
+    return res;
+}
+
+char *zst_fs_get_basename(const char *path)
+{
+    assert(path != NULL);
 
 #ifdef _WIN32
     char delim = '\\';
@@ -223,15 +249,20 @@ char *zst_fs_get_name(const char *pathname)
     char delim = '/';
 #endif // platform
 
-    size_t len = strlen(pathname);
+    size_t len = strlen(path);
     char buf[len + 1];
-    snprintf(buf, sizeof(buf), "%s", pathname);
+    snprintf(buf, sizeof(buf), "%s", path);
 
     if (buf[len - 1] == delim) buf[len - 1] = '\0';
 
     char *pos = strrchr(buf, delim);
-    if (pos) return (char *) pathname + (pos - buf + 1);
-    return (char *) pathname;
+    if (pos) pos++;
+    else pos = (char *) path;
+
+    char *res = malloc(len + 1);
+    assert(res != NULL);
+    strcpy(res, pos);
+    return res;
 }
 
 bool zst_fs_pwd(char *buf, size_t buf_size)
@@ -252,17 +283,17 @@ bool zst_fs_pwd(char *buf, size_t buf_size)
     return true;
 }
 
-bool zst_fs_cd(const char *pathname)
+bool zst_fs_cd(const char *path)
 {
-    assert(pathname != NULL);
+    assert(path != NULL);
 
 #ifdef _WIN32
-    if (!SetCurrentDirectory(pathname)) {
+    if (!SetCurrentDirectory(path)) {
         perror("change current directory");
         return false;
     }
 #else
-    if (chdir(pathname) != 0) {
+    if (chdir(path) != 0) {
         perror("change current directory");
         return false;
     }
@@ -307,9 +338,9 @@ static bool zst__fs_copy_file(const char *src, const char *dest)
 
     if (zst_fs_typeof(dest) == FT_DIR) {
 #ifdef _WIN32
-        snprintf(path, sizeof(path), "%s\\%s", dest, zst_fs_get_name(src));
+        snprintf(path, sizeof(path), "%s\\%s", dest, zst_fs_get_basename(src));
 #else
-        snprintf(path, sizeof(path), "%s/%s", dest, zst_fs_get_name(src));
+        snprintf(path, sizeof(path), "%s/%s", dest, zst_fs_get_basename(src));
 #endif // platform
     } else {
         snprintf(path, sizeof(path), "%s", dest);
@@ -352,10 +383,10 @@ static bool zst__fs_copy_dir(const char *src, const char *dest)
     for (size_t i = 0; i < md.f_cnt; i++) {
 #ifdef _WIN32
         snprintf(path, sizeof(path), "%s\\%s",
-                 dest, zst_fs_get_name(md.files[i]));
+                 dest, zst_fs_get_basename(md.files[i]));
 #else
         snprintf(path, sizeof(path), "%s/%s",
-                 dest, zst_fs_get_name(md.files[i]));
+                 dest, zst_fs_get_basename(md.files[i]));
 #endif // platform
         if (!zst__fs_copy_file(md.files[i], path)) return_defer(false);
         path[len] = '\0';
@@ -364,10 +395,10 @@ static bool zst__fs_copy_dir(const char *src, const char *dest)
     for (size_t i = 0; i < md.d_cnt; i++) {
 #ifdef _WIN32
         snprintf(path, sizeof(path), "%s\\%s",
-                 dest, zst_fs_get_name(md.dirs[i]));
+                 dest, zst_fs_get_basename(md.dirs[i]));
 #else
         snprintf(path, sizeof(path), "%s/%s",
-                 dest, zst_fs_get_name(md.dirs[i]));
+                 dest, zst_fs_get_basename(md.dirs[i]));
 #endif // platform
         if (!zst__fs_copy_dir(md.dirs[i], path)) return_defer(false);
         path[len] = '\0';
@@ -400,12 +431,12 @@ bool zst_fs_copy(const char *src, const char *dest)
     else return zst__fs_copy_file(src, dest);
 }
 
-bool zst_fs_mkdir(const char *pathname)
+bool zst_fs_mkdir(const char *path)
 {
-    assert(pathname != NULL);
+    assert(path != NULL);
 
     char path_copy[ZST_FS_MAX_PATH_SIZE] = {0};
-    strncpy(path_copy, pathname, sizeof(path_copy));
+    strncpy(path_copy, path, sizeof(path_copy));
 
     /* Process step by step in the path string */
     char *dir = path_copy;
@@ -419,7 +450,7 @@ bool zst_fs_mkdir(const char *pathname)
         *dir = '\\';
         dir++;
     }
-    return (_mkdir(pathname) == 0 || errno == EEXIST);
+    return (_mkdir(path) == 0 || errno == EEXIST);
 #else
     while ((dir = strchr(dir, '/')) != NULL) {
         *dir = '\0';
@@ -434,16 +465,16 @@ bool zst_fs_mkdir(const char *pathname)
     }
 
     /* Create final directory */
-    return (mkdir(pathname, S_IRWXU | S_IRWXG | S_IRWXO) == 0 ||
+    return (mkdir(path, S_IRWXU | S_IRWXG | S_IRWXO) == 0 ||
             errno == EEXIST);
 #endif // platform
 }
 
-bool zst_fs_touch(const char *pathname)
+bool zst_fs_touch(const char *path)
 {
-    assert(pathname != NULL);
+    assert(path != NULL);
 
-    FILE *fp = fopen(pathname, "a");
+    FILE *fp = fopen(path, "a");
     if (fp == NULL) return false;
     fclose(fp);
     return true;
@@ -528,14 +559,14 @@ static bool zst__fs_remove_dir(const char *dirpath)
 #endif // platform
 }
 
-zst_filearr_t zst_fs_match_recursively(const char *pathname, const char *pattern)
+zst_filearr_t zst_fs_match_recursively(const char *path, const char *pattern)
 {
-    assert(pathname != NULL && pattern != NULL);
+    assert(path != NULL && pattern != NULL);
 
-    zst_filearr_t res = zst_fs_match(pathname, pattern);
+    zst_filearr_t res = zst_fs_match(path, pattern);
 
     zst_meta_dir_t md = {0};
-    if (!zst_fs_load_dir(pathname, &md)) goto defer;
+    if (!zst_fs_load_dir(path, &md)) goto defer;
 
     for (size_t i = 0; i < md.d_cnt; i++) {
         zst_filearr_t sub_res = zst_fs_match_recursively(md.dirs[i], pattern);
@@ -550,14 +581,14 @@ defer:
     return res;
 }
 
-zst_filearr_t zst_fs_find_recursively(const char *pathname, int attrs)
+zst_filearr_t zst_fs_find_recursively(const char *path, int attrs)
 {
-    assert(pathname != NULL);
+    assert(path != NULL);
 
-    zst_filearr_t res = zst_fs_find(pathname, attrs);
+    zst_filearr_t res = zst_fs_find(path, attrs);
 
     zst_meta_dir_t md = {0};
-    if (!zst_fs_load_dir(pathname, &md)) goto defer;
+    if (!zst_fs_load_dir(path, &md)) goto defer;
 
     for (size_t i = 0; i < md.d_cnt; i++) {
         zst_filearr_t sub_res = zst_fs_find_recursively(md.dirs[i], attrs);
@@ -572,16 +603,16 @@ defer:
     return res;
 }
 
-zst_filearr_t zst_fs_match(const char *pathname, const char *pattern)
+zst_filearr_t zst_fs_match(const char *path, const char *pattern)
 {
-    assert(pathname != NULL && pattern != NULL);
+    assert(path != NULL && pattern != NULL);
 
     zst_filearr_t res = {0};
 
-    int type = zst_fs_typeof(pathname);
+    int type = zst_fs_typeof(path);
     if (type == FT_DIR) {
         zst_meta_dir_t md = {0};
-        zst_fs_load_dir(pathname, &md);
+        zst_fs_load_dir(path, &md);
         for (size_t i = 0; i < md.f_cnt; i++) {
             if (zst__wildcard_match(md.files[i], pattern)) {
                 zst_filearr_append(&res, md.files[i]);
@@ -589,24 +620,24 @@ zst_filearr_t zst_fs_match(const char *pathname, const char *pattern)
         }
         zst_fs_free_meta_dir(&md);
     } else if (type == FT_REG) {
-        if (zst__wildcard_match(pathname, pattern)) {
-            zst_filearr_append(&res, pathname);
+        if (zst__wildcard_match(path, pattern)) {
+            zst_filearr_append(&res, path);
         }
     } 
 
     return res;
 }
 
-zst_filearr_t zst_fs_find(const char *pathname, int attrs)
+zst_filearr_t zst_fs_find(const char *path, int attrs)
 {
-    assert(pathname != NULL);
+    assert(path != NULL);
 
     zst_filearr_t res = {0};
 
-    int type = zst_fs_typeof(pathname);
+    int type = zst_fs_typeof(path);
     if (type == FT_DIR) {
         zst_meta_dir_t md = {0};
-        zst_fs_load_dir(pathname, &md);
+        zst_fs_load_dir(path, &md);
         for (size_t i = 0; i < md.f_cnt; i++) {
             if (zst_fs_check_perm(md.files[i], attrs)) {
                 zst_filearr_append(&res, md.files[i]);
@@ -614,35 +645,35 @@ zst_filearr_t zst_fs_find(const char *pathname, int attrs)
         }
         zst_fs_free_meta_dir(&md);
     } else if (type == FT_REG) {
-        if (zst_fs_check_perm(pathname, attrs)) {
-            zst_filearr_append(&res, pathname);
+        if (zst_fs_check_perm(path, attrs)) {
+            zst_filearr_append(&res, path);
         }
     } 
 
     return res;
 }
 
-bool zst_fs_remove(const char *pathname)
+bool zst_fs_remove(const char *path)
 {
-    int type = zst_fs_typeof(pathname);
+    int type = zst_fs_typeof(path);
     if (type == FT_NOET) return true;
-    else if (type == FT_DIR) return zst__fs_remove_dir(pathname);
-    else return remove(pathname) == 0;
+    else if (type == FT_DIR) return zst__fs_remove_dir(path);
+    else return remove(path) == 0;
 }
 
-int zst_fs_typeof(const char *pathname)
+int zst_fs_typeof(const char *path)
 {
-    assert(pathname != NULL);
+    assert(path != NULL);
 
 #ifdef _WIN32
-    DWORD attr = GetFileAttributesA(pathname);
+    DWORD attr = GetFileAttributesA(path);
     if (attr == INVALID_FILE_ATTRIBUTES) return FT_NOET;
 
     if (attr & FILE_ATTRIBUTE_DIRECTORY) return FT_DIR;
     else return FT_REG;
 #else
     struct stat sb;
-    if (stat(pathname, &sb) == -1) return FT_NOET;
+    if (stat(path, &sb) == -1) return FT_NOET;
 
     switch (sb.st_mode & S_IFMT) {
     case S_IFBLK:
@@ -995,7 +1026,8 @@ void zst_filearr_free(zst_filearr_t *arr)
 #ifdef ZST_NO_PREFIX
 
 #define fs_get_timestamp        zst_fs_get_timestamp
-#define fs_get_name             zst_fs_get_name
+#define fs_get_basename         zst_fs_get_basename
+#define fs_get_dirname          zst_fs_get_dirname
 #define fs_get_attr             zst_fs_get_attr
 #define fs_get_size             zst_fs_get_size
 #define fs_check_perm           zst_fs_check_perm

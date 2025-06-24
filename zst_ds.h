@@ -48,6 +48,9 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
+#include <ctype.h>
+#include <stdarg.h>
 
 #ifndef ZST_ANY_TYPE
 #define ZST_ANY_TYPE
@@ -61,6 +64,8 @@ typedef struct {
 #define ZST_ANY_COPY(from)                          \
     ({                                              \
         zst_any_t to;                               \
+        to.data = malloc((from).size);              \
+        assert(to.data != NULL);                    \
         memcpy(to.data, (from).data, (from).size);  \
         to.size = (from).size;                      \
         to;                                         \
@@ -145,7 +150,7 @@ zst_string_t zst_string_init(const char *str);
 void zst_string_free(zst_string_t *str);
 void zst_string_append(zst_string_t *str, const char *fmt, ...);
 zst_string_t zst_string_substr(const char *str, size_t begin, size_t end);
-size_t zst_string_hash(const char *str);
+unsigned int zst_string_hash(const char *str);
 zst_string_t zst_string_repeat(const char *str, size_t times);
 bool zst_string_equal(const char *str1, const char *str2);
 void zst_string_reserve(char *str);
@@ -247,10 +252,12 @@ void zst_dyna_merge(zst_dyna_t *to, zst_dyna_t *from)
     assert(to != NULL);
     assert(from != NULL);
 
-    for (size_t i = 0; i < from->capacity; i++) {
-        zst_dyna_insert(to, from->items[i], to->count);
+    for (size_t i = 0; i < from->count; i++) {
+        zst_any_t copy = ZST_ANY_COPY(from->items[i]);
+        zst_dyna_insert(to, copy, to->count);
+        ZST_ANY_FREE(from->items[i]);
     }
-    zst_dyna_init(from);
+    zst_dyna_free(from);
 }
 
 zst_dyna_t zst_dyna_slice(zst_dyna_t *dyna, size_t begin, size_t end)
@@ -301,7 +308,7 @@ zst_any_t zst_stack_pop(zst_stack_t *stk)
     assert(stk != NULL);
     assert(stk->top != 0);
 
-    return stk->items[stk->top--];
+    return stk->items[--stk->top];
 }
 
 zst_any_t zst_stack_top(zst_stack_t *stk)
@@ -309,19 +316,19 @@ zst_any_t zst_stack_top(zst_stack_t *stk)
     assert(stk != NULL);
     assert(stk->top != 0);
 
-    return stk->items[stk->top];
+    return stk->items[stk->top-1];
 }
 
 void zst_stack_free(zst_stack_t *stk)
 {
     assert(stk != NULL);
 
-    for (size_t i = 0; i < stack->top; i++) {
-        ZST_ANY_FREE(stack->items[i]);
+    for (size_t i = 0; i < stk->top; i++) {
+        ZST_ANY_FREE(stk->items[i]);
     }
-    if (stack->items) free(stack->items);
+    if (stk->items) free(stk->items);
 
-    zst_stack_init(stack);
+    zst_stack_init(stk);
 }
 
 bool zst_stack_isempty(zst_stack_t *stk)
@@ -383,7 +390,7 @@ zst_string_t zst_string_repeat(const char *str, size_t times)
 zst_string_t zst_string_substr(const char *str, size_t begin, size_t end)
 {
     /* [begin, end) */
-    assert(src != NULL && begin >= 0 && end <= strlen(str) && begin < end);
+    assert(str != NULL && begin >= 0 && end <= strlen(str) && begin < end);
 
     zst_string_t res = {0};
 

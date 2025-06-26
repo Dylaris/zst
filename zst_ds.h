@@ -85,6 +85,37 @@ typedef struct {
 } zst_anyops_t;
 #endif
 
+#ifndef ZST_ANY_DEFAULT_CTOR
+#define ZST_ANY_DEFAULT_CTOR(ptr, sz)       \
+    ({                                      \
+        zst_any_t res;                      \
+        res.size = (sz);                    \
+        res.data = malloc(res.size);        \
+        memcpy(res.data, (ptr), res.size);  \
+        res;                                \
+    })
+#endif 
+
+#ifndef ZST_ANY_DEFAULT_DTOR
+#define ZST_ANY_DEFAULT_DTOR(item)      \
+    do {                                \
+        if (item.data) free(item.data); \
+        item.data = NULL;               \
+        item.size = 0;                  \
+    } while (0)
+#endif 
+
+#ifndef ZST_ANY_DEFAULT_COPY
+#define ZST_ANY_DEFAULT_COPY(item)              \
+    ({                                          \
+        zst_any_t res;                          \
+        res.size = item.size;                   \
+        res.data = malloc(res.size);            \
+        memcpy(res.data, item.data, res.size);  \
+        res;                                    \
+    })
+#endif 
+
 #ifndef ZST_ANY_AS
 #define ZST_ANY_AS(type, any)                               \
     ({                                                      \
@@ -106,6 +137,7 @@ typedef struct {
                 default: &tmp);         \
     })
 #endif
+
 
 /******************************************
  ******** dynamic array declaration
@@ -583,8 +615,11 @@ bool zst_string_end_with(const char *str, const char *postfix)
 #endif // ZST_DS_IMPLEMENTATION
 
 #ifdef ZST_DS_NO_PREFIX
-#define ANY_OF      ZST_ANY_OF
-#define ANY_AS      ZST_ANY_AS
+#define ANY_OF           ZST_ANY_OF
+#define ANY_AS           ZST_ANY_AS
+#define ANY_DEFAULT_CTOR ZST_ANY_DEFAULT_CTOR
+#define ANY_DEFAULT_DTOR ZST_ANY_DEFAULT_DTOR
+#define ANY_DEFAULT_COPY ZST_ANY_DEFAULT_COPY
 
 #define dyna_init           zst_dyna_init
 #define dyna_free           zst_dyna_free

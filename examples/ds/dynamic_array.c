@@ -4,34 +4,17 @@
 
 any_t ctor(void *ptr)
 {
-    char *cstring = (char *) ptr;
-    any_t item;
-
-    item.size = strlen(cstring);
-    item.data = malloc(item.size + 1);
-    memcpy(item.data, cstring, item.size);
-    ((char *) item.data)[item.size] = '\0';
-
-    return item;
+    return ANY_DEFAULT_CTOR(ptr, strlen(ptr)+1);
 }
 
 void dtor(any_t item)
 {
-    if (item.data) free(item.data);
-    item.data = NULL;
-    item.size = 0;
+    ANY_DEFAULT_DTOR(item);
 }
 
 any_t copy(any_t from)
 {
-    any_t res;
-
-    res.data = malloc(from.size + 1);
-    memcpy(res.data, from.data, from.size);
-    ((char *) res.data)[from.size] = '\0';
-    res.size = from.size;
-
-    return res;
+    return ANY_DEFAULT_COPY(from);
 }
 
 int main(void)
@@ -47,6 +30,8 @@ int main(void)
     dyna_append(&names, ANY_OF("jack"));
     dyna_append(&names, ANY_OF("ben"));
     dyna_append(&names, ANY_OF("tom"));
+    dyna_insert(&names, ANY_OF("john"), 1);
+    dyna_remove(&names, 2);
 
     for (unsigned i = 0; i < names.count; i++) {
         printf("%s\n", ANY_AS(char *, names.items[i]));

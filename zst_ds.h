@@ -1,61 +1,56 @@
-/*
- * Author: Dylaris
- * Copyright (c) 2025
- * License: MIT
- * Date: 2025-06-25
- *
- * All rights reserved
- *
- *
- * BRIEF:
- *
- * This file implements some data structures with a 'generic' type.
- *
- * USAGE:
- *
- * ```
- *    #define ZST_DS_NO_PREFIX
- *    #define ZST_DS_IMPLEMENTATION
- *    #include "zst_ds.h"
- *
- *    ... (function implementation: ctor, dtor, copy)
- *
- *    anyops_t ops = {
- *        .ctor = ctor,
- *        .dtor = dtor,
- *        .copy = copy,
- *    };
- *    dyna_t numbers;
- *    dyna_init(&numbers, &ops); 
- *
- *    dyna_append(&numbers, ANY_OF(1));
- *    int n0 = ANY_AS(int, numbers.items[0]); 
- *
- *    dyna_free(&numbers);
- *    ...
- * ```
- *
- * NOTE:
- *
- * This library uses GCC extensions, like 'statement expressions'.
- * Make sure to enable these extensions when using the library.
- *
- * It implements generics by splitting code into unchanged and changed parts.
- * The majority of the code is unchanged logic, while the changed part handles
- * things like type info, constructors, destructors, etc.
- *
- * A new type, 'zst_any_t', holds the type info, and 'zst_anyops_t' contains
- * the constructor, destructor, and copy functions.
- * If you want to extend it, focus on the changed parts.
- *
- * To use it, you pass a value to 'ZST_ANY_OF', and it produces a reference of 
- * passed value. And it will call the 'ctor' somewhere to create a zst_any_t object.
- * And 'ZST_ANY_AS' will unpack the data of 'zst_any_t' to your desired type.
- *
- * This approach is inspired by the 'VFS' in Linux, particularly the
- * 'struct file_operations', which contains callback functions like 'read', 
- * 'write', 'open', etc. Similarly, 'zst_anyops_t' contains those operations.
- */
+//
+// BRIEF:
+//
+// This file implements some data structures with a 'generic' type.
+//
+// USAGE:
+//
+// ```
+//    #define ZST_DS_NO_PREFIX
+//    #define ZST_DS_IMPLEMENTATION
+//    #include "zst_ds.h"
+//
+//    ... (function implementation: ctor, dtor, copy)
+//
+//    anyops_t ops = {
+//        .ctor = ctor,
+//        .dtor = dtor,
+//        .copy = copy,
+//    };
+//    dyna_t numbers;
+//    dyna_init(&numbers, &ops); 
+//
+//    dyna_append(&numbers, ANY_OF(1));
+//    int n0 = ANY_AS(int, numbers.items[0]); 
+//
+//    dyna_free(&numbers);
+//    ...
+// ```
+//
+// NOTE:
+//
+// This library uses GCC extensions, like 'statement expressions'.
+// Make sure to enable these extensions when using the library.
+//
+// It implements generics by splitting code into unchanged and changed parts.
+// The majority of the code is unchanged logic, while the changed part handles
+// things like type info, constructors, destructors, etc.
+//
+// A new type, 'zst_any_t', holds the type info, and 'zst_anyops_t' contains
+// the constructor, destructor, and copy functions.
+// If you want to extend it, focus on the changed parts.
+//
+// To use it, you pass a value to 'ZST_ANY_OF', and it produces a reference of 
+// passed value. And it will call the 'ctor' somewhere to create a zst_any_t object.
+// And 'ZST_ANY_AS' will unpack the data of 'zst_any_t' to your desired type.
+//
+// This approach is inspired by the 'VFS' in Linux, particularly the
+// 'struct file_operations', which contains callback functions like 'read', 
+// 'write', 'open', etc. Similarly, 'zst_anyops_t' contains those operations.
+//
+// LICENSE:
+//
+// See end of file for license information.
 
 #ifndef ZST_DS_H
 #define ZST_DS_H
@@ -79,7 +74,7 @@ typedef struct {
 #ifndef ZST_ANY_OPERATIONS
 #define ZST_ANY_OPERATIONS
 typedef struct {
-    zst_any_t (*ctor)(void *);
+    zst_any_t (*ctor)(void*);
     void (*dtor)(zst_any_t);
     zst_any_t (*copy)(zst_any_t); 
 } zst_anyops_t;
@@ -117,13 +112,14 @@ typedef struct {
 #endif 
 
 #ifndef ZST_ANY_AS
-#define ZST_ANY_AS(type, any)                               \
-    ({                                                      \
-        type tmp;                                           \
-        _Generic(tmp,                                       \
-                const char *: (const char *) (any).data,    \
-                char *: (char *) (any).data,                \
-                default: (*(type *) (any).data));           \
+#define ZST_ANY_AS(type, any)                          \
+    ({                                                 \
+        type tmp;                                      \
+        zst_any_t any1 = (any);                        \
+        _Generic(tmp,                                  \
+                const char*: (const char*)(any1).data, \
+                char*: (cha *)(any1).data,             \
+                default: (*(type*)(any1).data));       \
     })
 #endif
 
@@ -132,16 +128,16 @@ typedef struct {
     ({                                  \
         typeof(value) tmp = (value);    \
         _Generic(tmp,                   \
-                const char *: tmp,      \
-                char *: tmp,            \
+                const char*: tmp,       \
+                char*: tmp,             \
                 default: &tmp);         \
     })
 #endif
 
 
-/******************************************
- ******** dynamic array declaration
- ********/
+///////////////////////////////////////////
+//////// dynamic array declaration
+///////////////////////////////////////////
 
 typedef struct {
     unsigned count;
@@ -159,9 +155,9 @@ void zst_dyna_insert(zst_dyna_t *dyna, void *ptr, unsigned idx);
 void zst_dyna_remove(zst_dyna_t *dyna, unsigned idx);
 void zst_dyna_append(zst_dyna_t *dyna, void *ptr);
 
-/******************************************
- ******** stack declaration
- ********/
+///////////////////////////////////////////
+//////// stack declaration
+///////////////////////////////////////////
 
 typedef struct {
     unsigned top;
@@ -177,9 +173,9 @@ zst_any_t zst_stack_top(zst_stack_t *stk);
 void zst_stack_free(zst_stack_t *stk);
 bool zst_stack_isempty(zst_stack_t *stk);
 
-/******************************************
- ******** string declaration
- ********/
+///////////////////////////////////////////
+//////// string declaration
+///////////////////////////////////////////
 
 typedef struct {
     char *base;
@@ -197,7 +193,7 @@ zst_string_t zst_string_repeat(const char *str, unsigned times);
 bool zst_string_equal(const char *str1, const char *str2);
 void zst_string_reserve(char *str);
 void zst_string_trim(char *str);
-/* wildcard match. Only support '*' and '?' */
+// Wildcard match. Only support '*' and '?'
 bool zst_string_match(const char *str, const char *pattern);
 bool zst_string_start_with(const char *str, const char *prefix);
 bool zst_string_end_with(const char *str, const char *postfix);
@@ -232,9 +228,9 @@ bool zst_string_end_with(const char *str, const char *postfix);
         assert((ops) && (ops)->ctor && (ops)->dtor && (ops)->copy)
 #endif
 
-/******************************************
- ******** dynamic array implementation
- ********/
+///////////////////////////////////////////
+//////// dynamic array implementation
+///////////////////////////////////////////
 
 void zst_dyna_init(zst_dyna_t *dyna, zst_anyops_t *ops)
 {
@@ -342,9 +338,9 @@ zst_dyna_t zst_dyna_slice(zst_dyna_t *dyna, unsigned begin, unsigned end)
     return res;
 }
 
-/******************************************
- ******** stack implementation
- ********/
+///////////////////////////////////////////
+//////// stack implementation
+///////////////////////////////////////////
 
 void zst_stack_init(zst_stack_t *stk, zst_anyops_t *ops)
 {
@@ -403,9 +399,9 @@ bool zst_stack_isempty(zst_stack_t *stk)
     return stk->top == 0;
 }
 
-/******************************************
- ******** string implementation
- ********/
+///////////////////////////////////////////
+//////// string implementation
+///////////////////////////////////////////
 
 zst_string_t zst_string_init(const char *str)
 {
@@ -455,7 +451,7 @@ zst_string_t zst_string_repeat(const char *str, unsigned times)
 
 zst_string_t zst_string_substr(const char *str, unsigned begin, unsigned end)
 {
-    /* [begin, end) */
+    // [begin, end)
     assert(str != NULL && begin >= 0 && end <= strlen(str) && begin < end);
 
     zst_string_t res = {0};
@@ -483,7 +479,7 @@ static zst_string_t zst__string_join(const char *delim, ...)
     }
     va_end(args);
 
-    /* Get rid of last delim */
+    // Get rid of last delim
     res.base[pos] = '\0';
     res.len = pos;
 
@@ -655,3 +651,23 @@ typedef zst_stack_t     stack_t;
 typedef zst_string_t    string_t;
 
 #endif // ZST_DS_NO_PREFIX
+
+// ------------------------------------------------------------------------------
+// This software is available under MIT License
+// ------------------------------------------------------------------------------
+// Copyright (c) 2025 Dylaris
+// Permission is hereby granted, free of charge, to any person obtaining a copy of
+// this software and associated documentation files (the "Software"), to deal in
+// the Software without restriction, including without limitation the rights to
+// use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+// of the Software, and to permit persons to whom the Software is furnished to do
+// so, subject to the following conditions:
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.

@@ -1,11 +1,15 @@
-/*
- * Author: Dylaris
- * Copyright (c) 2025
- * License: MIT
- * Date: 2025-06-08
- *
- * All rights reserved
- */
+// BRIEF:
+//
+// This file implements a simple flag parser, which is used to 
+// devlopment a command line tool.
+//
+// NOTE:
+//
+// It only supports one format, like '-flag_name flag_value'.
+//
+// LICENSE:
+//
+// See end of file for license information.
 
 #ifndef ZST_FLAG_H
 #define ZST_FLAG_H
@@ -20,7 +24,7 @@
 #define ZST_MAX_FLAGS 16
 #endif
 
-/* Type of flag value */
+// Type of flag value
 enum {
     STRING,
     INTEGER,
@@ -34,8 +38,8 @@ enum {
 
 typedef struct {
     bool isused;
-    char *name;
-    char *info;
+    const char *name;
+    const char *info;
     struct {
         int type;
         union {
@@ -48,36 +52,11 @@ typedef struct {
 
 #define NR_FLAGS 16
 
-static struct {
-    const char *prog;
-    zst_flag_t flags[NR_FLAGS];
-    unsigned count;
-} __cmdline = {0};
+#define zst_flag_define(type, n, v, i) zst_flag_define_##type(n, v, i)
 
-#ifdef ZST_FLAG_IMPLEMENTATION 
-#define zst_flag_define(t, n, v, i)                         \
-    do {                                                    \
-        assert(t >= 0 && t < NR_TYPES);                     \
-        assert(n != NULL);                                  \
-                                                            \
-        zst_flag_t flag = {                                 \
-            .isused = false,                                \
-            .name = n,                                      \
-            .info = i ? i : "(null)",                       \
-        };                                                  \
-        flag.value.type = t;                                \
-        switch (t) {                                        \
-        case STRING:  flag.value.as.string  = (v); break;   \
-        case INTEGER: flag.value.as.integer = (v); break;   \
-        case BOOLEAN: flag.value.as.boolean = (v); break;   \
-        default: assert("!unreachable");                    \
-        }                                                   \
-        __cmdline.flags[__cmdline.count++] = flag;          \
-    } while (0)
-#else
-#define zst_flag_define(type, name, value, info)
-#endif
-
+void zst_flag_define_string(const char *name, char *value, const char *info);
+void zst_flag_define_integer(const char *name, int value, const char *info);
+void zst_flag_define_boolean(const char *name, bool value, const char *info);
 bool zst_flag_isuse(const char *name);
 zst_flag_t *zst_flag_get(const char *name);
 void zst_flag_help(void);
@@ -86,6 +65,52 @@ void zst_flag_parse(int argc, char **argv);
 #endif // ZST_FLAG_H
 
 #ifdef ZST_FLAG_IMPLEMENTATION
+
+static struct {
+    const char *prog;
+    zst_flag_t flags[NR_FLAGS];
+    unsigned count;
+} __cmdline = {0};
+
+
+void zst_flag_define_string(const char *name, char *value, const char *info)
+{
+    assert(name != NULL);
+    zst_flag_t flag = {
+        .isused = false,
+        .name = name,
+        .info = info ? info : "(null)",
+    };
+    flag.value.type = STRING;
+    flag.value.as.string = value;
+    __cmdline.flags[__cmdline.count++] = flag;
+}
+
+void zst_flag_define_integer(const char *name, int value, const char *info)
+{
+    assert(name != NULL);
+    zst_flag_t flag = {
+        .isused = false,
+        .name = name,
+        .info = info ? info : "(null)",
+    };
+    flag.value.type = INTEGER;
+    flag.value.as.integer = value;
+    __cmdline.flags[__cmdline.count++] = flag;
+}
+
+void zst_flag_define_boolean(const char *name, bool value, const char *info)
+{    
+    assert(name != NULL);
+    zst_flag_t flag = {
+        .isused = false,
+        .name = name,
+        .info = info ? info : "(null)",
+    };
+    flag.value.type = BOOLEAN;
+    flag.value.as.boolean = value;
+    __cmdline.flags[__cmdline.count++] = flag;
+}
 
 bool zst_flag_isuse(const char *name)
 {
@@ -144,10 +169,10 @@ void zst_flag_parse(int argc, char **argv)
         }
         flag->isused = true;
         if (i + 1 < argc) {
-            /* Another flag */
+            // Another flag
             if (argv[i+1][0] == '-') continue;
 
-            /* The value of current flag */
+            // The value of current flag
             i++; // argv[i] point to current value
             switch (flag->value.type) {
             case STRING:
@@ -180,3 +205,23 @@ void zst_flag_parse(int argc, char **argv)
 typedef zst_flag_t flag_t;
 
 #endif // ZST_FLAG_NO_PREFIX
+
+// ------------------------------------------------------------------------------
+// This software is available under MIT License
+// ------------------------------------------------------------------------------
+// Copyright (c) 2025 Dylaris
+// Permission is hereby granted, free of charge, to any person obtaining a copy of
+// this software and associated documentation files (the "Software"), to deal in
+// the Software without restriction, including without limitation the rights to
+// use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+// of the Software, and to permit persons to whom the Software is furnished to do
+// so, subject to the following conditions:
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.

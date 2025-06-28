@@ -4,9 +4,9 @@
 
 int main(int argc, char **argv)
 {
-    flag_define(STRING, "name", "jack", "user name");
-    flag_define(INTEGER, "age", 20, "user age");
-    flag_define(BOOLEAN, "sex", true, "user gender (true means male)");
+    flag_define(string, "name", "jack", "user name");
+    flag_define(integer, "age", 20, "user age");
+    flag_define(boolean, "sex", true, "user gender (true means male)");
 
     flag_parse(argc, argv);
     flag_help();

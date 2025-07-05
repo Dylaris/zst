@@ -58,32 +58,40 @@ typedef struct {
     char *content;
     int type;
     int attr;
-    size_t size;
-    size_t line;
+    unsigned size;
+    unsigned line_cnt;
+    struct {
+        char *start;
+        unsigned len;
+    } *lines;
 } zst_meta_file_t ;
 
 typedef struct {
     char *name;
     char **files;
     char **dirs;
-    size_t f_cnt;
-    size_t d_cnt;
-    size_t count;
+    unsigned f_cnt;
+    unsigned d_cnt;
+    unsigned count;
 } zst_meta_dir_t;
 
 typedef struct {
-    size_t count;
-    size_t capacity;
+    unsigned count;
+    unsigned capacity;
     char **items;
 } zst_filearr_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 static bool zst__wildcard_match(const char *str, const char *pattern);
 void zst_filearr_append(zst_filearr_t *arr, const char *item);
 void zst_filearr_free(zst_filearr_t *arr);
-size_t zst_fs_get_timestamp(const char *path);
+unsigned zst_fs_get_timestamp(const char *path);
 char *zst_fs_get_basename(const char *path);
 char *zst_fs_get_dirname(const char *path);
-bool zst_fs_pwd(char *buf, size_t buf_size);
+bool zst_fs_pwd(char *buf, unsigned buf_size);
 bool zst_fs_cd(const char *path);
 bool zst_fs_move(const char *src, const char *dest);
 bool zst_fs_copy(const char *src, const char *dest);
@@ -99,11 +107,15 @@ int zst_fs_typeof(const char *path);
 void zst_fs_free_meta_file(zst_meta_file_t *mf);
 void zst_fs_free_meta_dir(zst_meta_dir_t *md);
 int zst_fs_get_attr(const char *filename);
-size_t zst_fs_get_size(const char *filename);
+unsigned zst_fs_get_size(const char *filename);
 bool zst_fs_check_perm(const char *filename, int perm);
 bool zst_fs_load_file(const char *filename, zst_meta_file_t *res);
-bool zst_fs_dump_file(const char *filename, const char *buf, size_t size);
+bool zst_fs_dump_file(const char *filename, const char *buf, unsigned size);
 bool zst_fs_load_dir(const char *dirname, zst_meta_dir_t *res);
+
+#ifdef __cplusplus
+}
+#endif
 
 #ifdef ZST_FS_IMPLEMENTATION
     #ifdef _WIN32
@@ -151,12 +163,12 @@ bool zst_fs_load_dir(const char *dirname, zst_meta_dir_t *res);
 
 #ifdef ZST_FS_IMPLEMENTATION
 
-static inline int count_line(char *buf, size_t size)
+static inline int count_line(char *buf, unsigned size)
 {
     assert(buf != NULL);
 
     int count = 0;
-    for (size_t i = 0; i < size; i++) {
+    for (unsigned i = 0; i < size; i++) {
         if (buf[i] == '\n') count++;
     }
 
@@ -165,11 +177,11 @@ static inline int count_line(char *buf, size_t size)
     return count;
 }
 
-size_t zst_fs_get_timestamp(const char *path)
+unsigned zst_fs_get_timestamp(const char *path)
 {
     assert(path != NULL);
 
-    size_t timestamp = 0;
+    unsigned timestamp = 0;
     if (zst_fs_typeof(path) == FT_NOET) return 0;
 
 #ifdef _WIN32
@@ -188,7 +200,7 @@ size_t zst_fs_get_timestamp(const char *path)
         
         ULONGLONG ft = (((ULONGLONG)ftWrite.dwHighDateTime)<<32)
                         + ftWrite.dwLowDateTime;
-        timestamp = (size_t)((ft-116444736000000000LL)/10000000);
+        timestamp = (unsigned)((ft-116444736000000000LL)/10000000);
     } else {
         perror("failed to get file time");
         CloseHandle(hFile);
@@ -202,7 +214,7 @@ size_t zst_fs_get_timestamp(const char *path)
         return 0;
     }
 
-    timestamp = (size_t) sb.st_mtime;
+    timestamp = (unsigned) sb.st_mtime;
 #endif // platform
 
     return timestamp;
@@ -215,7 +227,7 @@ char *zst_fs_get_dirname(const char *path)
     char *basename = zst_fs_get_basename(path);
     assert(basename != NULL);
 
-    size_t len = strlen(path) - strlen(basename);
+    unsigned len = strlen(path) - strlen(basename);
     char *res;
     if (len == 0) {
         res = malloc(2);
@@ -243,7 +255,7 @@ char *zst_fs_get_basename(const char *path)
     char delim = '/';
 #endif // platform
 
-    size_t len = strlen(path);
+    unsigned len = strlen(path);
     char buf[len + 1];
     snprintf(buf, sizeof(buf), "%s", path);
 
@@ -259,7 +271,7 @@ char *zst_fs_get_basename(const char *path)
     return res;
 }
 
-bool zst_fs_pwd(char *buf, size_t buf_size)
+bool zst_fs_pwd(char *buf, unsigned buf_size)
 {
     assert(buf != NULL);
 
@@ -310,7 +322,7 @@ bool zst_fs_remove_all(zst_filearr_t *files)
     assert(files != NULL);
 
     bool status = true;
-    for (size_t i = 0; i < files->count; i++) {
+    for (unsigned i = 0; i < files->count; i++) {
         status &= zst_fs_remove(files->items[i]);
     }
     return status;
@@ -369,12 +381,12 @@ static bool zst__fs_copy_dir(const char *src, const char *dest)
     }
 
     char path[ZST_FS_MAX_PATH_SIZE] = {0};
-    size_t len = strlen(dest);
+    unsigned len = strlen(dest);
 
     zst_meta_dir_t md = {0};
     zst_fs_load_dir(src, &md);
 
-    for (size_t i = 0; i < md.f_cnt; i++) {
+    for (unsigned i = 0; i < md.f_cnt; i++) {
 #ifdef _WIN32
         snprintf(path, sizeof(path), "%s\\%s",
                  dest, zst_fs_get_basename(md.files[i]));
@@ -386,7 +398,7 @@ static bool zst__fs_copy_dir(const char *src, const char *dest)
         path[len] = '\0';
     }
 
-    for (size_t i = 0; i < md.d_cnt; i++) {
+    for (unsigned i = 0; i < md.d_cnt; i++) {
 #ifdef _WIN32
         snprintf(path, sizeof(path), "%s\\%s",
                  dest, zst_fs_get_basename(md.dirs[i]));
@@ -562,9 +574,9 @@ zst_filearr_t zst_fs_match_recursively(const char *path, const char *pattern)
     zst_meta_dir_t md = {0};
     if (!zst_fs_load_dir(path, &md)) goto defer;
 
-    for (size_t i = 0; i < md.d_cnt; i++) {
+    for (unsigned i = 0; i < md.d_cnt; i++) {
         zst_filearr_t sub_res = zst_fs_match_recursively(md.dirs[i], pattern);
-        for (size_t j = 0; j < sub_res.count; j++) {
+        for (unsigned j = 0; j < sub_res.count; j++) {
             zst_filearr_append(&res, sub_res.items[j]);
         }
         zst_filearr_free(&sub_res);
@@ -584,9 +596,9 @@ zst_filearr_t zst_fs_find_recursively(const char *path, int attrs)
     zst_meta_dir_t md = {0};
     if (!zst_fs_load_dir(path, &md)) goto defer;
 
-    for (size_t i = 0; i < md.d_cnt; i++) {
+    for (unsigned i = 0; i < md.d_cnt; i++) {
         zst_filearr_t sub_res = zst_fs_find_recursively(md.dirs[i], attrs);
-        for (size_t j = 0; j < sub_res.count; j++) {
+        for (unsigned j = 0; j < sub_res.count; j++) {
             zst_filearr_append(&res, sub_res.items[j]);
         }
         zst_filearr_free(&sub_res);
@@ -607,7 +619,7 @@ zst_filearr_t zst_fs_match(const char *path, const char *pattern)
     if (type == FT_DIR) {
         zst_meta_dir_t md = {0};
         zst_fs_load_dir(path, &md);
-        for (size_t i = 0; i < md.f_cnt; i++) {
+        for (unsigned i = 0; i < md.f_cnt; i++) {
             if (zst__wildcard_match(md.files[i], pattern)) {
                 zst_filearr_append(&res, md.files[i]);
             }
@@ -632,7 +644,7 @@ zst_filearr_t zst_fs_find(const char *path, int attrs)
     if (type == FT_DIR) {
         zst_meta_dir_t md = {0};
         zst_fs_load_dir(path, &md);
-        for (size_t i = 0; i < md.f_cnt; i++) {
+        for (unsigned i = 0; i < md.f_cnt; i++) {
             if (zst_fs_check_perm(md.files[i], attrs)) {
                 zst_filearr_append(&res, md.files[i]);
             }
@@ -714,7 +726,7 @@ bool zst_fs_load_dir(const char *dirname, zst_meta_dir_t *res)
             strcmp(findFileData.cFileName, "..") == 0)
             continue;
 
-        size_t len = strlen(dirname) + strlen(findFileData.cFileName) + 2;
+        unsigned len = strlen(dirname) + strlen(findFileData.cFileName) + 2;
         char *fullPath = (char *) malloc(len);
         if (!hasSlash) {
             snprintf(fullPath, len, "%s\\%s", dirname, findFileData.cFileName);
@@ -758,7 +770,7 @@ bool zst_fs_load_dir(const char *dirname, zst_meta_dir_t *res)
             strcmp(entry->d_name, "..") == 0)
             continue;
 
-        size_t len = strlen(dirname) + strlen(entry->d_name) + 2;
+        unsigned len = strlen(dirname) + strlen(entry->d_name) + 2;
         char *full_path = (char *) malloc(len);
         if (!has_slash) {
             snprintf(full_path, len, "%s/%s", dirname, entry->d_name);
@@ -816,12 +828,28 @@ bool zst_fs_load_file(const char *filename, zst_meta_file_t *res)
     res->content = malloc(res->size + 1);    
     assert(res->content != NULL);
 
-    size_t read_size = zst_fs_read(fd, res->content, res->size);
+    unsigned read_size = zst_fs_read(fd, res->content, res->size);
     if (read_size != res->size) return_defer(-1);
 
     res->content[res->size] = '\0';
-    res->line = count_line(res->content, res->size);
+    res->line_cnt = count_line(res->content, res->size);
     res->attr = zst_fs_get_attr(filename);
+
+    struct {char *a; unsigned b;} tmp;
+    res->lines = malloc(res->line_cnt*sizeof(tmp));
+    assert(res->lines != NULL);
+
+    for (unsigned lnr = 0, i = 0; i < res->size; i++) {
+        res->lines[lnr].start = res->content + i;
+        unsigned len = 0;
+        while (res->lines[lnr].start[len] != '\n') {
+            if (i + len >= res->size) break;
+            len++;
+        }
+        res->lines[lnr].len = len;
+        lnr++;
+        i += len;
+    }
 
 defer:
     if (status == -1) zst_fs_free_meta_file(res);
@@ -837,15 +865,17 @@ void zst_fs_free_meta_file(zst_meta_file_t *mf)
 
     if (mf->name) free(mf->name);
     if (mf->content) free(mf->content);
+    if (mf->lines) free(mf->lines);
 
     mf->name = NULL;
     mf->content = NULL;
     mf->type = FT_NOET;
     mf->size = 0;
-    mf->line = 0;
+    mf->line_cnt = 0;
+    mf->lines = NULL;
 }
 
-size_t zst_fs_get_size(const char *filename)
+unsigned zst_fs_get_size(const char *filename)
 {
     assert(filename != NULL);
 
@@ -858,14 +888,14 @@ size_t zst_fs_get_size(const char *filename)
     LARGE_INTEGER fileSize;
     fileSize.LowPart = fileInfo.nFileSizeLow;
     fileSize.HighPart = fileInfo.nFileSizeHigh;
-    return (size_t) fileSize.QuadPart;
+    return (unsigned) fileSize.QuadPart;
 #else
     struct stat st;
     if (stat(filename, &st) == -1) {
         perror("failed to get file size");
         return 0;
     }
-    return (size_t) st.st_size;
+    return (unsigned) st.st_size;
 #endif // platform
 }
 
@@ -912,14 +942,14 @@ void zst_fs_free_meta_dir(zst_meta_dir_t *md)
 
     if (md->name) free(md->name);
     if (md->files) {
-        for (size_t i = 0; i < md->f_cnt; i++) {
+        for (unsigned i = 0; i < md->f_cnt; i++) {
             if (md->files[i]) free(md->files[i]);
             md->files[i] = NULL;
         }
         free(md->files);
     }
     if (md->dirs) {
-        for (size_t i = 0; i < md->d_cnt; i++) {
+        for (unsigned i = 0; i < md->d_cnt; i++) {
             if (md->dirs[i]) free(md->dirs[i]);
             md->dirs[i] = NULL;
         }
@@ -934,7 +964,7 @@ void zst_fs_free_meta_dir(zst_meta_dir_t *md)
     md->count = 0;
 }
 
-bool zst_fs_dump_file(const char *filename, const char *buf, size_t size)
+bool zst_fs_dump_file(const char *filename, const char *buf, unsigned size)
 {
     assert(filename != NULL && buf != NULL);
 
@@ -944,7 +974,7 @@ bool zst_fs_dump_file(const char *filename, const char *buf, size_t size)
         return false;
     }
 
-    size_t write_size = zst_fs_write(fd, buf, size);
+    unsigned write_size = zst_fs_write(fd, buf, size);
     if (write_size != size) {
         perror("write part");
         return false;
@@ -1005,7 +1035,7 @@ void zst_filearr_append(zst_filearr_t *arr, const char *item)
 
 void zst_filearr_free(zst_filearr_t *arr)
 {
-    for (size_t i = 0; i < arr->count; i++) {
+    for (unsigned i = 0; i < arr->count; i++) {
         if (arr->items[i]) free(arr->items[i]);
         arr->items[i] = NULL;
     }

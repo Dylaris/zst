@@ -2,7 +2,7 @@
 
 ## Brief
 
-- **`zst.h`**: Commonly used functions.
+- **`zst_sbc.h`**: Build C project.
 
 - **`zst_flag.h`**: A command-line flag parser.
 

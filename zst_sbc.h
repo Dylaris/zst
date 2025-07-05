@@ -31,11 +31,19 @@ typedef struct {
     char **items;
 } zst_sbc_cmd_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 static void zst__sbc_cmd_append(zst_sbc_cmd_t *cmd, ...);
 static void zst__sbc_rebuild_self(char *cc, int argc, char **argv, char *source, ...);
 static bool zst__sbc_copy_file(char *src, char *dest);
 char *zst_sbc_cmd_concat(zst_sbc_cmd_t *cmd);
 bool zst_sbc_cmd_run(zst_sbc_cmd_t *cmd);
+
+#ifdef __cplusplus
+}
+#endif
 
 #ifdef ZST_SBC_IMPLEMENTATION
 #define zst_sbc_rebuild_self(cc, argc, argv, ...) \

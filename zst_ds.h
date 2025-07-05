@@ -1,4 +1,3 @@
-//
 // BRIEF:
 //
 // This file implements some data structures with a 'generic' type.
@@ -321,7 +320,7 @@ void zst_dyna_merge(zst_dyna_t *to, zst_dyna_t *from)
 
 zst_dyna_t zst_dyna_slice(zst_dyna_t *dyna, unsigned begin, unsigned end)
 {
-    /* Slice: [begin, end) */
+    // Slice: [begin, end)
     assert(dyna != NULL);
     assert(begin >= 0 && begin < dyna->count);
     assert(end > 0 && end <= dyna->count);

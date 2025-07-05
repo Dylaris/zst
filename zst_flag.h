@@ -54,6 +54,10 @@ typedef struct {
 
 #define zst_flag_define(type, n, v, i) zst_flag_define_##type(n, v, i)
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void zst_flag_define_string(const char *name, char *value, const char *info);
 void zst_flag_define_integer(const char *name, int value, const char *info);
 void zst_flag_define_boolean(const char *name, bool value, const char *info);
@@ -61,6 +65,10 @@ bool zst_flag_isuse(const char *name);
 zst_flag_t *zst_flag_get(const char *name);
 void zst_flag_help(void);
 void zst_flag_parse(int argc, char **argv);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // ZST_FLAG_H
 

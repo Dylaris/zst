@@ -1,7 +1,8 @@
-#ifndef STRING_H
-#define STRING_H
-
 #include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <assert.h>
+#include <string.h>
 
 void string_append(char *str, const char *fmt, ...);
 char *string_substr(const char *str, size_t begin, size_t end);
@@ -12,15 +13,6 @@ void string_trim(char *str);
 bool string_match(const char *str, const char *pattern);
 bool string_start_with(const char *str, const char *prefix);
 bool string_end_with(const char *str, const char *postfix);
-
-#endif // STRING_H
-
-#ifdef STRING_IMPLEMENTATION
-
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <assert.h>
 
 void string_append(char *str, const char *fmt, ...)
 {
@@ -175,26 +167,3 @@ bool string_end_with(const char *str, const char *postfix)
 
     return strncmp(str + str_len - postfix_len, postfix, postfix_len) == 0;
 }
-
-
-#endif // STRING_IMPLEMENTATION
-
-// ------------------------------------------------------------------------------
-// This software is available under MIT License
-// ------------------------------------------------------------------------------
-// Copyright (c) 2025 Dylaris
-// Permission is hereby granted, free of charge, to any person obtaining a copy of
-// this software and associated documentation files (the "Software"), to deal in
-// the Software without restriction, including without limitation the rights to
-// use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
-// of the Software, and to permit persons to whom the Software is furnished to do
-// so, subject to the following conditions:
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
